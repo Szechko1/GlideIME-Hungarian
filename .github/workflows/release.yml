@@ -29,14 +29,24 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      # Check if keystore secret exists
+      - name: Check if keystore secret exists
+        id: check_keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_FILE }}" ]; then
+            echo "keystore_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "keystore_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       # Build Signed Release APK if keystore is available
       - name: Decode Keystore
-        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        if: steps.check_keystore.outputs.keystore_exists == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > $HOME/keystore.jks
 
       - name: Build Signed Release APK
-        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        if: steps.check_keystore.outputs.keystore_exists == 'true'
         run: |
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file=$HOME/keystore.jks \
@@ -47,7 +57,7 @@ jobs:
 
       # Fallback: Build unsigned APK if no keystore
       - name: Build Unsigned Release APK
-        if: ${{ secrets.KEYSTORE_FILE == '' }}
+        if: steps.check_keystore.outputs.keystore_exists == 'false'
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Rename and prepare APK

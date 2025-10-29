@@ -50,14 +50,23 @@ jobs:
           retention-days: 30
 
       # ============ SIGNED RELEASE APK ============
+      - name: Check if keystore secret exists
+        id: check_keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_FILE }}" ]; then
+            echo "keystore_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "keystore_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Decode Keystore
-        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        if: steps.check_keystore.outputs.keystore_exists == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > $HOME/keystore.jks
         continue-on-error: true
 
       - name: Build Signed Release APK
-        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        if: steps.check_keystore.outputs.keystore_exists == 'true'
         run: |
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file=$HOME/keystore.jks \
@@ -68,7 +77,7 @@ jobs:
         continue-on-error: true
 
       - name: Rename Signed APK
-        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        if: steps.check_keystore.outputs.keystore_exists == 'true'
         run: |
           mkdir -p signed-apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
@@ -80,7 +89,7 @@ jobs:
 
       - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
-        if: ${{ secrets.KEYSTORE_FILE != '' && success() }}
+        if: steps.check_keystore.outputs.keystore_exists == 'true' && success()
         with:
           name: glide-ime-release-signed
           path: signed-apk/*.apk
@@ -94,7 +103,7 @@ jobs:
           echo "### Artifacts Generated:" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Debug APK (always available)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Unsigned Release APK (for testing)" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ secrets.KEYSTORE_FILE }}" != "" ]; then
+          if [ "${{ steps.check_keystore.outputs.keystore_exists }}" == "true" ]; then
             if [ -f signed-apk/GlideIME-Hungarian-signed.apk ]; then
               echo "- ✅ **Signed Release APK** (ready for production!)" >> $GITHUB_STEP_SUMMARY
             else
