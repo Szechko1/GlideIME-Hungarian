@@ -36,14 +36,73 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
+      # ============ UNSIGNED RELEASE APK ============
       - name: Build Release APK (unsigned)
         run: ./gradlew assembleRelease --stacktrace
         continue-on-error: true
 
-      - name: Upload Release APK
+      - name: Upload Unsigned Release APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: glide-ime-release-apk
+          name: glide-ime-release-unsigned-apk
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
+
+      # ============ SIGNED RELEASE APK ============
+      - name: Decode Keystore
+        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        run: |
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > $HOME/keystore.jks
+        continue-on-error: true
+
+      - name: Build Signed Release APK
+        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$HOME/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }} \
+            --stacktrace
+        continue-on-error: true
+
+      - name: Rename Signed APK
+        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        run: |
+          mkdir -p signed-apk
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk signed-apk/GlideIME-Hungarian-signed.apk
+          elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            echo "Warning: Only unsigned APK found"
+          fi
+        continue-on-error: true
+
+      - name: Upload Signed Release APK
+        uses: actions/upload-artifact@v4
+        if: ${{ secrets.KEYSTORE_FILE != '' && success() }}
+        with:
+          name: glide-ime-release-signed
+          path: signed-apk/*.apk
+          retention-days: 30
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Debug APK (always available)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Unsigned Release APK (for testing)" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ secrets.KEYSTORE_FILE }}" != "" ]; then
+            if [ -f signed-apk/GlideIME-Hungarian-signed.apk ]; then
+              echo "- ✅ **Signed Release APK** (ready for production!)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ Signed Release APK (keystore configuration issue)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ⚠️ Signed Release APK (keystore not configured)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ℹ️ To enable signed APK builds:" >> $GITHUB_STEP_SUMMARY
+            echo "See [SIGNING_SETUP.md](https://github.com/Szechko1/GlideIME-Hungarian/blob/main/SIGNING_SETUP.md)" >> $GITHUB_STEP_SUMMARY
+          fi

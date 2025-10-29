@@ -61,8 +61,28 @@ Minden commit után automatikusan generálódik egy APK:
 3. **Válaszd ki a legutóbbi sikeres build-et** (zöld pipa ✓)
 4. **Görgess le az "Artifacts" szekcióhoz**
 5. **Töltsd le**:
-   - `glide-ime-debug-apk` - Debug verzió (teszteléshez)
-   - `glide-ime-release-apk` - Release verzió (éles használathoz)
+   - ✅ `glide-ime-debug-apk` - **Debug verzió (ajánlott telepítéshez)**
+     - Automatikusan aláírva
+     - Közvetlenül telepíthető
+     - Teszteléshez és napi használathoz
+   - `glide-ime-release-unsigned-apk` - Unsigned Release verzió
+     - ⚠️ **Nem telepíthető** (nincs aláírva)
+   - ✅ `glide-ime-release-signed` - **Aláírt Release verzió (ha be van állítva)**
+     - Optimalizált, kisebb méret
+     - Production ready
+     - Csak akkor érhető el, ha beállítottad az aláírást
+
+### 🔐 Aláírt Release APK beállítása
+
+Ha szeretnéd, hogy automatikusan **aláírt Release APK** generálódjon, kövesd a **[SIGNING_SETUP.md](SIGNING_SETUP.md)** útmutatót!
+
+Ez a következőket teszi lehetővé:
+- ✅ Telepíthető Release APK-k
+- ✅ Optimalizált, gyorsabb alkalmazás
+- ✅ Kisebb fájlméret
+- ✅ Production ready build-ek
+
+**5 perc alatt beállítható!** Keystore generálás + GitHub Secrets konfigurálás.
 
 ### Release verzió letöltése
 

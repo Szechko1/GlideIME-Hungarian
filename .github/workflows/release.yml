@@ -25,18 +25,48 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --stacktrace
-
       - name: Get version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Rename APK
+      # Build Signed Release APK if keystore is available
+      - name: Decode Keystore
+        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        run: |
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > $HOME/keystore.jks
+
+      - name: Build Signed Release APK
+        if: ${{ secrets.KEYSTORE_FILE != '' }}
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$HOME/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }} \
+            --stacktrace
+
+      # Fallback: Build unsigned APK if no keystore
+      - name: Build Unsigned Release APK
+        if: ${{ secrets.KEYSTORE_FILE == '' }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Rename and prepare APK
         run: |
           mkdir -p release-apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk release-apk/GlideIME-Hungarian-${{ steps.get_version.outputs.VERSION }}.apk || \
-          cp app/build/outputs/apk/release/app-release.apk release-apk/GlideIME-Hungarian-${{ steps.get_version.outputs.VERSION }}.apk
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+
+          # Try to find signed APK first
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk release-apk/GlideIME-Hungarian-${VERSION}-signed.apk
+            echo "APK_TYPE=signed" >> $GITHUB_ENV
+          # Fallback to unsigned APK
+          elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release-apk/GlideIME-Hungarian-${VERSION}-unsigned.apk
+            echo "APK_TYPE=unsigned" >> $GITHUB_ENV
+          else
+            echo "Error: No APK found!"
+            exit 1
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -45,17 +75,41 @@ jobs:
           body: |
             ## GlideIME-Hungarian ${{ steps.get_version.outputs.VERSION }}
 
-            ### Letöltés és telepítés
+            ### 📥 Letöltés
+
+            **APK típus**: ${{ env.APK_TYPE == 'signed' && '✅ Aláírt (Signed)' || '⚠️ Aláíratlan (Unsigned - csak Debug APK telepíthető)' }}
+
+            ${{ env.APK_TYPE == 'signed' && '✅ Ez az APK telepíthető közvetlenül a készülékedre!' || '⚠️ Ez az APK nem telepíthető (nincs aláírva). Használd a Debug APK-t a GitHub Actions-ből, vagy állítsd be az aláírást a SIGNING_SETUP.md szerint.' }}
+
+            ### 📲 Telepítés
+
             1. Töltsd le az APK fájlt
-            2. Telepítsd a készülékedre
-            3. Aktiváld a Beállításokban
+            2. Másold át a készülékedre (USB / felhő)
+            3. Engedélyezd az "Ismeretlen források" telepítését
+            4. Telepítsd az APK-t
+            5. Aktiváld a Beállítások → Nyelvek és bevitel menüben
 
-            ### Változások
-            - Lásd a commit history-t a részletekért
+            ### ✨ Funkciók
 
-            ### Követelmények
+            - Magyar QWERTZ billentyűzet-kiosztás
+            - Teljes ékezetes karakterek támogatása (á, é, í, ó, ö, ő, ú, ü, ű)
+            - Ctrl kombinációk (Ctrl+C/V/X/Z/A stb.)
+            - Speciális karakterek Alt kombinációkkal
+            - Intelligens Enter kezelés
+
+            ### 📋 Követelmények
+
             - Android 7.0 (API 24) vagy újabb
             - Huawei készülék fizikai billentyűzettel
+            - HarmonyOS vagy Android operációs rendszer
+
+            ### 🔧 Változások
+
+            Lásd a [commit history](https://github.com/Szechko1/GlideIME-Hungarian/commits/${{ steps.get_version.outputs.VERSION }}) a részletes változásokért.
+
+            ---
+
+            ${{ env.APK_TYPE == 'unsigned' && '### ℹ️ Aláírt APK létrehozása\n\nHa szeretnéd, hogy a Release APK automatikusan aláírva legyen, kövesd a [SIGNING_SETUP.md](https://github.com/Szechko1/GlideIME-Hungarian/blob/main/SIGNING_SETUP.md) útmutatót.' || '' }}
           draft: false
           prerelease: false
         env:
