@@ -48,7 +48,44 @@ A **GlideIME-Hungarian** egy Input Method Editor (IME) alkalmazás, amely lehet�
 - **Huawei készülék** fizikai billentyűzettel (pl. Huawei Glide)
 - **HarmonyOS** vagy Android operációs rendszer
 
+## 📦 APK Letöltése (GitHub Actions)
+
+**A legegyszerűbb módszer**: Töltsd le a kész APK-t közvetlenül a GitHub-ról!
+
+### GitHub Actions automatikus build
+
+Minden commit után automatikusan generálódik egy APK:
+
+1. **Menj a GitHub repository-ba**: [GlideIME-Hungarian](https://github.com/Szechko1/GlideIME-Hungarian)
+2. **Kattints az "Actions" fülre** (felül)
+3. **Válaszd ki a legutóbbi sikeres build-et** (zöld pipa ✓)
+4. **Görgess le az "Artifacts" szekcióhoz**
+5. **Töltsd le**:
+   - `glide-ime-debug-apk` - Debug verzió (teszteléshez)
+   - `glide-ime-release-apk` - Release verzió (éles használathoz)
+
+### Release verzió letöltése
+
+Stabil kiadásokhoz menj a **Releases** oldalra:
+- [https://github.com/Szechko1/GlideIME-Hungarian/releases](https://github.com/Szechko1/GlideIME-Hungarian/releases)
+- Töltsd le a legújabb verzió APK fájlját
+
+### Mi az a GitHub Actions?
+
+A GitHub Actions automatikusan build-eli az APK-t minden alkalommal, amikor:
+- Új kód kerül fel a repository-ba (push)
+- Pull request készül
+- Manuálisan triggerelve van
+
+**Előnyök:**
+- ✅ Nincs szükség Android Studio-ra az APK letöltéséhez
+- ✅ Mindig friss build a legújabb kódból
+- ✅ Automatikus, minden commit után
+- ✅ 30 napig elérhető artifact-ok
+
 ## 🛠️ Build Instrukciók
+
+Ha magad szeretnéd build-elni a projektet:
 
 ### Előfeltételek
 

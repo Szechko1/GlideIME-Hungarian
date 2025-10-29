@@ -1,0 +1,62 @@
+name: Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Rename APK
+        run: |
+          mkdir -p release-apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk release-apk/GlideIME-Hungarian-${{ steps.get_version.outputs.VERSION }}.apk || \
+          cp app/build/outputs/apk/release/app-release.apk release-apk/GlideIME-Hungarian-${{ steps.get_version.outputs.VERSION }}.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-apk/*.apk
+          body: |
+            ## GlideIME-Hungarian ${{ steps.get_version.outputs.VERSION }}
+
+            ### Letöltés és telepítés
+            1. Töltsd le az APK fájlt
+            2. Telepítsd a készülékedre
+            3. Aktiváld a Beállításokban
+
+            ### Változások
+            - Lásd a commit history-t a részletekért
+
+            ### Követelmények
+            - Android 7.0 (API 24) vagy újabb
+            - Huawei készülék fizikai billentyűzettel
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
