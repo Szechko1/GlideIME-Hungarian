@@ -173,6 +173,10 @@ Ha több billentyűzeted van:
 
 ## ⌨️ Magyar Billentyűzet-kiosztás
 
+![Magyar Billentyűzet Kiosztás](docs/images/keyboard-layout.jpg)
+
+*A Huawei Glide magyar QWERTZ billentyűzet kiosztása*
+
 ### Számok (Shift kombinációval)
 ```
 1'  2"  3+  4!  5%  6/  7=  8(  9)  0§  üÜ  óÓ
