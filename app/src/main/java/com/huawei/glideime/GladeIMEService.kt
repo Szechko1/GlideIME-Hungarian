@@ -14,10 +14,12 @@ class GlideIMEService : InputMethodService() {
     private var ctrlPressed = false
     private var capsLockOn = false
     private var currentEditorInfo: EditorInfo? = null
+    private var currentLayout = 1 // 1 = magyar-1, 2 = magyar-2
+    private var spacePressed = false // Shift+Space kombinációhoz
 
-    // Huawei Glide magyar billentyűzet-kiosztás (PDF alapján)
+    // Huawei Glide magyar-1 billentyűzet-kiosztás (PDF alapján)
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
-    private val keyboardMap = mapOf(
+    private val keyboardMapHungarian1 = mapOf(
         // Számok (scancode 2-11)
         KeyEvent.KEYCODE_1 to KeyMapping("1", "'", "1", "1", "~"),
         KeyEvent.KEYCODE_2 to KeyMapping("2", "\"", "2", "2", "ˇ"),
@@ -86,6 +88,77 @@ class GlideIMEService : InputMethodService() {
         KeyEvent.KEYCODE_SPACE to KeyMapping(" ", " ", " ", " ", " ")
     )
 
+    // Huawei Glide magyar-2 billentyűzet-kiosztás (módosított)
+    // Különbségek: ESC helyén 0, 0 helyén ö/Ö
+    private val keyboardMapHungarian2 = mapOf(
+        // Számok (scancode 2-11)
+        KeyEvent.KEYCODE_1 to KeyMapping("1", "'", "1", "1", "~"),
+        KeyEvent.KEYCODE_2 to KeyMapping("2", "\"", "2", "2", "ˇ"),
+        KeyEvent.KEYCODE_3 to KeyMapping("3", "+", "3", "3", "^"),
+        KeyEvent.KEYCODE_4 to KeyMapping("4", "!", "4", "4", "˘"),
+        KeyEvent.KEYCODE_5 to KeyMapping("5", "%", "5", "5", "°"),
+        KeyEvent.KEYCODE_6 to KeyMapping("6", "/", "6", "6", "˛"),
+        KeyEvent.KEYCODE_7 to KeyMapping("7", "=", "7", "7", "`"),
+        KeyEvent.KEYCODE_8 to KeyMapping("8", "(", "8", "8", "˙"),
+        KeyEvent.KEYCODE_9 to KeyMapping("9", ")", "9", "9", "´"),
+        KeyEvent.KEYCODE_0 to KeyMapping("ö", "Ö", "Ö", "ö", "ö"), // MÓDOSÍTVA: 0 helyén ö/Ö
+
+        // Scancode 12-13: Ü és Ó
+        KeyEvent.KEYCODE_MINUS to KeyMapping("ü", "Ü", "Ü", "ü", "¨"),
+        KeyEvent.KEYCODE_EQUALS to KeyMapping("ó", "Ó", "Ó", "ó", "¸"),
+
+        // QWERTY sor (scancode 16-27)
+        KeyEvent.KEYCODE_Q to KeyMapping("q", "Q", "Q", "\\", "\\"),
+        KeyEvent.KEYCODE_W to KeyMapping("w", "W", "W", "|", "|"),
+        KeyEvent.KEYCODE_E to KeyMapping("e", "E", "E", "Ä", "Ä"),
+        KeyEvent.KEYCODE_R to KeyMapping("r", "R", "R", "", ""),
+        KeyEvent.KEYCODE_T to KeyMapping("t", "T", "T", "", ""),
+        KeyEvent.KEYCODE_Y to KeyMapping("z", "Z", "Z", "", ""), // Scancode 21: Z
+        KeyEvent.KEYCODE_U to KeyMapping("u", "U", "U", "€", "€"),
+        KeyEvent.KEYCODE_I to KeyMapping("i", "I", "I", "í", "Í"),
+        KeyEvent.KEYCODE_O to KeyMapping("o", "O", "O", "ö", "Ö"),
+        KeyEvent.KEYCODE_P to KeyMapping("p", "P", "P", "", ""),
+
+        // Scancode 26-27: Ő és Ú
+        KeyEvent.KEYCODE_LEFT_BRACKET to KeyMapping("ő", "Ő", "Ő", "÷", "÷"),
+        KeyEvent.KEYCODE_RIGHT_BRACKET to KeyMapping("ú", "Ú", "Ú", "×", "×"),
+
+        // ASDFGH sor (scancode 30-40)
+        KeyEvent.KEYCODE_A to KeyMapping("a", "A", "A", "ä", "ä"),
+        KeyEvent.KEYCODE_S to KeyMapping("s", "S", "S", "đ", "đ"),
+        KeyEvent.KEYCODE_D to KeyMapping("d", "D", "D", "Đ", "Đ"),
+        KeyEvent.KEYCODE_F to KeyMapping("f", "F", "F", "[", "["),
+        KeyEvent.KEYCODE_G to KeyMapping("g", "G", "G", "]", "]"),
+        KeyEvent.KEYCODE_H to KeyMapping("h", "H", "H", "", ""),
+        KeyEvent.KEYCODE_J to KeyMapping("j", "J", "J", "í", "í"),
+        KeyEvent.KEYCODE_K to KeyMapping("k", "K", "K", "ł", "ł"),
+        KeyEvent.KEYCODE_L to KeyMapping("l", "L", "L", "Ł", "Ł"),
+
+        // Scancode 39-40: É és Á
+        KeyEvent.KEYCODE_SEMICOLON to KeyMapping("é", "É", "É", "$", "$"),
+        KeyEvent.KEYCODE_APOSTROPHE to KeyMapping("á", "Á", "Á", "ß", "ß"),
+
+        // Scancode 43: Ű (az Enter előtt)
+        KeyEvent.KEYCODE_BACKSLASH to KeyMapping("ű", "Ű", "Ű", "¤", "¤"),
+
+        // YXCVBN sor (scancode 44-53)
+        KeyEvent.KEYCODE_Z to KeyMapping("y", "Y", "Y", ">", ">"), // Scancode 44: Y
+        KeyEvent.KEYCODE_X to KeyMapping("x", "X", "X", "#", "#"),
+        KeyEvent.KEYCODE_C to KeyMapping("c", "C", "C", "c", "c"),
+        KeyEvent.KEYCODE_V to KeyMapping("v", "V", "V", "@", "@"),
+        KeyEvent.KEYCODE_B to KeyMapping("b", "B", "B", "{", "{"),
+        KeyEvent.KEYCODE_N to KeyMapping("n", "N", "N", "}", "}"),
+        KeyEvent.KEYCODE_M to KeyMapping("m", "M", "M", "µ", "µ"),
+
+        // Scancode 51-53: pontozás
+        KeyEvent.KEYCODE_COMMA to KeyMapping(",", "?", "?", ";", ";"),
+        KeyEvent.KEYCODE_PERIOD to KeyMapping(".", ":", ":", "<", "<"),
+        KeyEvent.KEYCODE_SLASH to KeyMapping("-", "_", "_", "*", "*"),
+
+        // Spacebar
+        KeyEvent.KEYCODE_SPACE to KeyMapping(" ", " ", " ", " ", " ")
+    )
+
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentEditorInfo = info
@@ -93,6 +166,7 @@ class GlideIMEService : InputMethodService() {
         altPressed = false
         ctrlPressed = false
         capsLockOn = false
+        spacePressed = false
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -123,6 +197,22 @@ class GlideIMEService : InputMethodService() {
             if (keyCode == KeyEvent.KEYCODE_CAPS_LOCK) {
                 capsLockOn = !capsLockOn
                 return true
+            }
+
+            // ==================== LAYOUT VÁLTÁS (SHIFT+SPACE) ====================
+
+            // Space billentyű lenyomása
+            if (keyCode == KeyEvent.KEYCODE_SPACE) {
+                spacePressed = true
+
+                // Ha Shift+Space, akkor layout váltás
+                if (shiftPressed) {
+                    currentLayout = if (currentLayout == 1) 2 else 1
+                    val layoutName = if (currentLayout == 1) "Magyar-1" else "Magyar-2"
+                    showToast("Billentyűzet: $layoutName")
+                    return true
+                }
+                // Ha csak Space (Shift nélkül), akkor később kerül feldolgozásra a keyboardMap-ből
             }
 
             // ==================== CTRL KOMBINÁCIÓK ====================
@@ -339,9 +429,15 @@ class GlideIMEService : InputMethodService() {
                 return true
             }
 
-            // Escape
+            // Escape - magyar-2 layout esetén 0 szám
             if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
-                sendDownUpKeyEvents(KeyEvent.KEYCODE_ESCAPE)
+                if (currentLayout == 2) {
+                    // Magyar-2 layout: ESC helyén 0
+                    currentInputConnection?.commitText("0", 1)
+                } else {
+                    // Magyar-1 layout: normál ESC
+                    sendDownUpKeyEvents(KeyEvent.KEYCODE_ESCAPE)
+                }
                 return true
             }
 
@@ -425,6 +521,9 @@ class GlideIMEService : InputMethodService() {
 
             // ==================== NORMÁL KARAKTEREK ====================
 
+            // Megfelelő billentyűzet-kiosztás kiválasztása
+            val keyboardMap = if (currentLayout == 1) keyboardMapHungarian1 else keyboardMapHungarian2
+
             // Billentyűzet-kiosztás kezelése
             val mapping = keyboardMap[keyCode]
             if (mapping != null) {
@@ -462,6 +561,11 @@ class GlideIMEService : InputMethodService() {
 
             if (keyCode == KeyEvent.KEYCODE_ALT_LEFT || keyCode == KeyEvent.KEYCODE_ALT_RIGHT) {
                 altPressed = false
+                return true
+            }
+
+            if (keyCode == KeyEvent.KEYCODE_SPACE) {
+                spacePressed = false
                 return true
             }
         } catch (e: Exception) {
