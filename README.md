@@ -14,6 +14,20 @@ A **GlideIME-Hungarian** egy Input Method Editor (IME) alkalmazás, amely lehet�
 - ✅ **Speciális karakterek** Alt és Shift+Alt kombinációkkal
 - ✅ **Shift és CapsLock** támogatás
 - ✅ **Számok és szimbólumok** teljes magyar kiosztás szerint
+- ✅ **Dual Layout (Magyar-1 és Magyar-2)** - Két kiosztás közötti váltás lehetősége
+
+### Dual Layout - Magyar-1 és Magyar-2
+Az alkalmazás két billentyűzet kiosztást kínál, amelyek között **Shift+Space** kombinációval lehet váltani:
+
+**Magyar-1 (alapértelmezett):**
+- ESC gomb: ESC funkció
+- 0 gomb: 0 szám
+
+**Magyar-2 (módosított):**
+- ESC gomb: 0 szám
+- 0 gomb: ö (kisbetű), Ö (Shift/Caps Lock)
+
+A layout váltáskor egy értesítés jelenik meg, amely mutatja az aktív kiosztást. Az alkalmazás mindig Magyar-1 kiosztással indul.
 
 ### Szövegkezelés
 - ✅ **Ctrl+C/V/X** - Másolás, beillesztés, kivágás
