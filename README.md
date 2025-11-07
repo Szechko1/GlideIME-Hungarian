@@ -1,10 +1,10 @@
-# GlideIME-Hungarian 🇭🇺
+# Magyar Glide 🇭🇺
 
 Magyar billentyűzet-kiosztás (QWERTZ) Huawei Glide fizikai billentyűzethez HarmonyOS/Android rendszereken.
 
 ## 📝 Leírás
 
-A **GlideIME-Hungarian** egy Input Method Editor (IME) alkalmazás, amely lehetővé teszi a magyar QWERTZ billentyűzet-kiosztás használatát Huawei készülékeken fizikai billentyűzettel (különösen Huawei Glide). Az alkalmazás támogatja az összes magyar ékezetes karaktert, valamint számos speciális funkciót, mint például a Ctrl-kombinációk, szövegkezelési parancsok és intelligens Enter kezelés.
+A **Magyar Glide** egy Input Method Editor (IME) alkalmazás, amely lehetővé teszi a magyar QWERTZ billentyűzet-kiosztás használatát Huawei készülékeken fizikai billentyűzettel (különösen Huawei Glide). Az alkalmazás támogatja az összes magyar ékezetes karaktert, valamint számos speciális funkciót, mint például a Ctrl-kombinációk, szövegkezelési parancsok és intelligens Enter kezelés.
 
 ## ✨ Funkciók
 
@@ -14,25 +14,6 @@ A **GlideIME-Hungarian** egy Input Method Editor (IME) alkalmazás, amely lehet�
 - ✅ **Speciális karakterek** Alt és Shift+Alt kombinációkkal
 - ✅ **Shift és CapsLock** támogatás
 - ✅ **Számok és szimbólumok** teljes magyar kiosztás szerint
-- ✅ **Dual Layout (Magyar-1 és Magyar-2)** - Két kiosztás közötti váltás lehetősége
-
-### Dual Layout - Magyar-1 és Magyar-2
-Az alkalmazás két billentyűzet kiosztást kínál, amelyek között **Shift+Space** kombinációval lehet váltani:
-
-**Magyar-1 (alapértelmezett):**
-- ESC gomb: ESC funkció
-- 0 gomb: 0 szám
-
-**Magyar-2 (módosított):**
-- ESC gomb: 0 szám
-- 0 gomb: ö (kisbetű), Ö (Shift/Caps Lock)
-
-A layout váltáskor egy értesítés jelenik meg, amely mutatja az aktív kiosztást. Az alkalmazás mindig Magyar-1 kiosztással indul.
-
-**⚠️ Ismert korlát - Microsoft Word 365:**
-Magyar-2 layout esetén az ESC gomb kiírja a "0" számot, de Microsoft Word-ben továbbra is kilép a dokumentumból. Ez az Android/HarmonyOS rendszer korlátja: a hardware billentyűzet eseményeit közvetlenül az alkalmazás kapja meg, és az IME nem tudja teljesen blokkolni őket. A probléma csak MS Word agresszív ESC kezelése miatt jelentkezik.
-- **Megoldás:** Használj Magyar-1 layout-ot MS Word-ben, vagy térképezd át az ESC funkciót a Word beállításaiban
-- **Más alkalmazások:** WPS Office és a legtöbb egyéb app helyesen működik ✓
 
 ### Szövegkezelés
 - ✅ **Ctrl+C/V/X** - Másolás, beillesztés, kivágás
