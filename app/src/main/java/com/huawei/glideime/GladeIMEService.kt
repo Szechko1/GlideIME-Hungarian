@@ -199,6 +199,20 @@ class GlideIMEService : InputMethodService() {
                 return true
             }
 
+            // ==================== ESC BILLENTYŰ KORAI KEZELÉSE ====================
+            // Microsoft Word kompatibilitás: ESC-et korán el kell kapni magyar-2-ben
+            if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
+                if (currentLayout == 2) {
+                    // Magyar-2 layout: ESC helyén 0
+                    currentInputConnection?.commitText("0", 1)
+                    return true  // NE engedjük tovább az ESC eseményt!
+                } else {
+                    // Magyar-1 layout: normál ESC
+                    sendDownUpKeyEvents(KeyEvent.KEYCODE_ESCAPE)
+                    return true
+                }
+            }
+
             // ==================== LAYOUT VÁLTÁS (SHIFT+SPACE) ====================
 
             // Space billentyű lenyomása
@@ -426,18 +440,6 @@ class GlideIMEService : InputMethodService() {
             // Tab
             if (keyCode == KeyEvent.KEYCODE_TAB) {
                 currentInputConnection?.commitText("\t", 1)
-                return true
-            }
-
-            // Escape - magyar-2 layout esetén 0 szám
-            if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
-                if (currentLayout == 2) {
-                    // Magyar-2 layout: ESC helyén 0
-                    currentInputConnection?.commitText("0", 1)
-                } else {
-                    // Magyar-1 layout: normál ESC
-                    sendDownUpKeyEvents(KeyEvent.KEYCODE_ESCAPE)
-                }
                 return true
             }
 
