@@ -29,6 +29,11 @@ Az alkalmazás két billentyűzet kiosztást kínál, amelyek között **Shift+S
 
 A layout váltáskor egy értesítés jelenik meg, amely mutatja az aktív kiosztást. Az alkalmazás mindig Magyar-1 kiosztással indul.
 
+**⚠️ Ismert korlát - Microsoft Word 365:**
+Magyar-2 layout esetén az ESC gomb kiírja a "0" számot, de Microsoft Word-ben továbbra is kilép a dokumentumból. Ez az Android/HarmonyOS rendszer korlátja: a hardware billentyűzet eseményeit közvetlenül az alkalmazás kapja meg, és az IME nem tudja teljesen blokkolni őket. A probléma csak MS Word agresszív ESC kezelése miatt jelentkezik.
+- **Megoldás:** Használj Magyar-1 layout-ot MS Word-ben, vagy térképezd át az ESC funkciót a Word beállításaiban
+- **Más alkalmazások:** WPS Office és a legtöbb egyéb app helyesen működik ✓
+
 ### Szövegkezelés
 - ✅ **Ctrl+C/V/X** - Másolás, beillesztés, kivágás
 - ✅ **Ctrl+Z/Y** - Visszavonás, Mégis
