@@ -199,18 +199,10 @@ class GlideIMEService : InputMethodService() {
                 return true
             }
 
-            // ==================== ESC BILLENTYŰ KORAI KEZELÉSE ====================
-            // Microsoft Word kompatibilitás: ESC-et korán el kell kapni magyar-2-ben
-            if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
-                if (currentLayout == 2) {
-                    // Magyar-2 layout: ESC helyén 0
-                    currentInputConnection?.commitText("0", 1)
-                    return true  // NE engedjük tovább az ESC eseményt!
-                } else {
-                    // Magyar-1 layout: normál ESC
-                    sendDownUpKeyEvents(KeyEvent.KEYCODE_ESCAPE)
-                    return true
-                }
+            // ESC billentyű magyar-1 layout esetén (magyar-2-t az interceptKeyBeforeDispatching kezeli)
+            if (keyCode == KeyEvent.KEYCODE_ESCAPE && currentLayout == 1) {
+                sendDownUpKeyEvents(KeyEvent.KEYCODE_ESCAPE)
+                return true
             }
 
             // ==================== LAYOUT VÁLTÁS (SHIFT+SPACE) ====================
@@ -833,6 +825,30 @@ class GlideIMEService : InputMethodService() {
 
     private fun showToast(message: String) {
         android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    // ==================== INTERCEPT KEY BEFORE DISPATCHING ====================
+    // Ez a metódus MÉG KORÁBBAN hívódik meg, mielőtt az esemény az alkalmazáshoz érne
+    // Használjuk ESC blokkolására magyar-2 layout esetén (MS Word kompatibilitás)
+    override fun interceptKeyBeforeDispatching(
+        binding: android.view.inputmethod.InputBinding?,
+        event: KeyEvent?,
+        policyFlags: Int
+    ): Boolean {
+        if (event == null) return false
+
+        // ESC key blokkolása magyar-2 layout esetén
+        if (event.keyCode == KeyEvent.KEYCODE_ESCAPE && currentLayout == 2) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                // Írjuk be a "0"-t
+                currentInputConnection?.commitText("0", 1)
+            }
+            // BLOKKOLJA az esemény továbbítását az alkalmazáshoz
+            return true  // true = mi kezeltük, ne küldje tovább
+        }
+
+        // Minden más billentyű normál feldolgozása
+        return false  // false = továbbküldi az alkalmazásnak
     }
 
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
