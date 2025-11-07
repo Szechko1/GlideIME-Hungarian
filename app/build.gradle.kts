@@ -5,16 +5,30 @@ plugins {
 
 android {
     namespace = "com.huawei.glideime"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.huawei.glideime"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            // Debug keystore használata a könnyebb teszteléshez
+            // Éles verzióhoz használj saját keystore-t!
+            val debugKeystorePath = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            if (debugKeystorePath.exists()) {
+                storeFile = debugKeystorePath
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
@@ -24,6 +38,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
