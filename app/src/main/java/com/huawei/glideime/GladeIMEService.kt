@@ -71,7 +71,7 @@ class GlideIMEService : InputMethodService() {
         // YXCVBN sor (scancode 44-53)
         KeyEvent.KEYCODE_Z to KeyMapping("y", "Y", "Y", ">", ">"), // Scancode 44: Y
         KeyEvent.KEYCODE_X to KeyMapping("x", "X", "X", "#", "#"),
-        KeyEvent.KEYCODE_C to KeyMapping("c", "C", "C", "c", "c"),
+        KeyEvent.KEYCODE_C to KeyMapping("c", "C", "C", "&", "&"),
         KeyEvent.KEYCODE_V to KeyMapping("v", "V", "V", "@", "@"),
         KeyEvent.KEYCODE_B to KeyMapping("b", "B", "B", "{", "{"),
         KeyEvent.KEYCODE_N to KeyMapping("n", "N", "N", "}", "}"),
