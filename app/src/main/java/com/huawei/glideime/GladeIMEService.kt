@@ -399,9 +399,18 @@ class GlideIMEService : InputMethodService() {
 
             // Backspace (Delete backward)
             if (keyCode == KeyEvent.KEYCODE_DEL) {
-                // Ellenőrizzük, hogy üres-e a mező
                 val ic = currentInputConnection
                 if (ic != null) {
+                    // Először ellenőrizzük, hogy van-e kijelölt szöveg
+                    val selectedText = ic.getSelectedText(0)
+
+                    if (selectedText != null && selectedText.isNotEmpty()) {
+                        // Ha van kijelölt szöveg, töröljük egyben
+                        ic.commitText("", 1)
+                        return true
+                    }
+
+                    // Ha nincs kijelölt szöveg, ellenőrizzük hogy üres-e a mező
                     val textBefore = ic.getTextBeforeCursor(1, 0)
                     val textAfter = ic.getTextAfterCursor(1, 0)
 
@@ -410,7 +419,7 @@ class GlideIMEService : InputMethodService() {
                         (textAfter == null || textAfter.isEmpty())) {
                         checkAndRetreatToPreviousField()
                     } else {
-                        // Normál törlés
+                        // Normál törlés - egy karakter
                         ic.deleteSurroundingText(1, 0)
                     }
                 }
@@ -874,23 +883,41 @@ class GlideIMEService : InputMethodService() {
 
             // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
             if (isLikelyOTPField) {
-                // Kis késleltetés, hogy az input stabilizálódjon
+                // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
-                        // Először próbáljuk az IME_ACTION_NEXT-et (natív Android mezőkhöz)
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
+                        // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
+                            // Natív Android mezők: IME_ACTION_NEXT
                             currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
                         } else {
-                            // Ha nincs ACTION_NEXT (pl. webes formok), küldünk egy Tab billentyűt
-                            // Ez a legtöbb webes OTP formnál működik
-                            sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
+                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
+                            val eventTime = System.currentTimeMillis()
+                            val tabDownEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_DOWN,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            val tabUpEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_UP,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            currentInputConnection?.sendKeyEvent(tabDownEvent)
+                            currentInputConnection?.sendKeyEvent(tabUpEvent)
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-                }, 100) // 100ms késleltetés a stabilitás érdekében
+                }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
             }
         } catch (e: Exception) {
             e.printStackTrace()
