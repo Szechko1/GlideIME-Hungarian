@@ -870,24 +870,38 @@ class GlideIMEService : InputMethodService() {
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
-            // Heurisztika: OTP mezők jellemzői
-            // 1. NUMBER típusú inputType
+            // SZIGORÚBB Heurisztika: OTP mezők jellemzői
+            // Csak akkor aktiválódik, ha BIZTOSAN OTP mező
+
+            // 1. NUMBER típusú inputType (OTP mezők gyakran csak számok)
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
 
-            // 2. TEXT típusú
-            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
+            // 2. Van NEXT action (ezt az OTP formok általában beállítják)
+            val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
-            // 3. Általános heurisztika: ha a mező 1 karakteres, valószínűleg OTP
-            // Webes formok gyakran 1 karakteres mezőket használnak OTP-hez
-            val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
+            // 3. A mező pontosan 1 karakter hosszú
+            val isOneCharacter = currentTextLength == 1
+
+            // 4. NEM URL mező (böngésző keresőmező kizárása)
+            val isNotUrlField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_URI) == 0
+
+            // 5. NEM email mező
+            val isNotEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) == 0
+
+            // 6. NEM web email mező
+            val isNotWebEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) == 0
+
+            // OTP mező feltételek:
+            // - VAGY: NUMBER típusú ÉS 1 karakter (legbiztosabb)
+            // - VAGY: Van NEXT action ÉS 1 karakter ÉS nem URL/email mező
+            val isLikelyOTPField = (isNumberType && isOneCharacter) ||
+                                    (hasNextAction && isOneCharacter && isNotUrlField && isNotEmailField && isNotWebEmailField)
 
             // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
             if (isLikelyOTPField) {
                 // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
-                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
                         // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
                             // Natív Android mezők: IME_ACTION_NEXT
