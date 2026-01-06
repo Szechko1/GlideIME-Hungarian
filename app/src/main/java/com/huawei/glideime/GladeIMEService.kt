@@ -410,18 +410,20 @@ class GlideIMEService : InputMethodService() {
                         return true
                     }
 
-                    // Ha nincs kijelölt szöveg, ellenőrizzük hogy üres-e a mező
-                    val textBefore = ic.getTextBeforeCursor(1, 0)
-                    val textAfter = ic.getTextAfterCursor(1, 0)
+                    // Ellenőrizzük a mező tartalmát
+                    val textBefore = ic.getTextBeforeCursor(10, 0) ?: ""
+                    val textAfter = ic.getTextAfterCursor(10, 0) ?: ""
 
-                    // Ha a mező üres, visszalépünk az előző mezőre
-                    if ((textBefore == null || textBefore.isEmpty()) &&
-                        (textAfter == null || textAfter.isEmpty())) {
-                        checkAndRetreatToPreviousField()
-                    } else {
-                        // Normál törlés - egy karakter
-                        ic.deleteSurroundingText(1, 0)
+                    // Ha a mező üres ÉS OTP-szerű, visszalépünk az előző mezőre
+                    if (textBefore.isEmpty() && textAfter.isEmpty()) {
+                        if (shouldAutoNavigate()) {
+                            checkAndRetreatToPreviousField()
+                            return true
+                        }
                     }
+
+                    // Normál törlés - egy karakter
+                    ic.deleteSurroundingText(1, 0)
                 }
                 return true
             }
@@ -856,6 +858,28 @@ class GlideIMEService : InputMethodService() {
         }
     }
 
+    // Ellenőrzi hogy OTP-szerű mező-e (auto-navigate-hez használt)
+    private fun shouldAutoNavigate(): Boolean {
+        try {
+            val info = currentEditorInfo ?: return false
+            val inputType = info.inputType
+
+            // BIZTOSAN KIZÁRJUK ezeket:
+            val isUrlField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_URI) != 0
+            val isEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0
+            val isWebEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0
+            val isPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0
+            val isWebPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD) != 0
+            val isMultiLine = (inputType and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE) != 0
+
+            // Ha kizárt típus, akkor NEM navigálunk
+            return !(isUrlField || isEmailField || isWebEmailField ||
+                     isPasswordField || isWebPasswordField || isMultiLine)
+        } catch (e: Exception) {
+            return false
+        }
+    }
+
     // OTP mezők automatikus továbbítása (egyszeri jelszó beviteli mezők)
     private fun checkAndAdvanceToNextField() {
         try {
@@ -867,69 +891,39 @@ class GlideIMEService : InputMethodService() {
             val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
             val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
-            val inputType = info.inputType
+            // Csak 1 karakteres mezőknél próbáljuk
+            if (currentTextLength != 1) return
+
+            // Ellenőrizzük hogy auto-navigate-elhető-e
+            if (!shouldAutoNavigate()) return
+
             val imeOptions = info.imeOptions
 
-            // Kiegyensúlyozott heurisztika: Működjön OTP mezőknél, de ne böngésző címsoroknál
+            // Rövid késleltetés majd navigáció
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
-            // 1. A mező pontosan 1 karakter hosszú (fő jellemző)
-            val isOneCharacter = currentTextLength == 1
+                    // Próbáljuk IME_ACTION_NEXT-et először
+                    if (hasNextAction) {
+                        currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                    } else {
+                        // Fallback: DPAD_RIGHT próbálkozás (néha működik jobban mint Tab)
+                        sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
 
-            // 2. BIZTOSAN KIZÁRJUK ezeket:
-            val isUrlField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_URI) != 0
-            val isEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0
-            val isWebEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0
-            val isPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0
-            val isWebPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD) != 0
-
-            // Hosszú több soros szövegmezők kizárása
-            val isMultiLine = (inputType and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE) != 0
-
-            // Ha bármelyik kizárt típus, akkor NEM OTP
-            val isExcludedField = isUrlField || isEmailField || isWebEmailField ||
-                                   isPasswordField || isWebPasswordField || isMultiLine
-
-            // OTP feltétel: 1 karakter ÉS nem kizárt mező típus
-            val isLikelyOTPField = isOneCharacter && !isExcludedField
-
-            // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
-            if (isLikelyOTPField) {
-                // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    try {
-                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
-                        // Többféle navigációs módszert próbálunk
-                        if (hasNextAction) {
-                            // Natív Android mezők: IME_ACTION_NEXT
-                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                        } else {
-                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
-                            val eventTime = System.currentTimeMillis()
-                            val tabDownEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_DOWN,
-                                KeyEvent.KEYCODE_TAB,
-                                0,
-                                0
-                            )
-                            val tabUpEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_UP,
-                                KeyEvent.KEYCODE_TAB,
-                                0,
-                                0
-                            )
-                            currentInputConnection?.sendKeyEvent(tabDownEvent)
-                            currentInputConnection?.sendKeyEvent(tabUpEvent)
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                        // Ha az sem működött, próbáljuk a Tab-ot is
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            try {
+                                sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }, 50)
                     }
-                }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
-            }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }, 100) // 100ms késleltetés
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -938,48 +932,42 @@ class GlideIMEService : InputMethodService() {
     // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
     private fun checkAndRetreatToPreviousField() {
         try {
-            val ic = currentInputConnection ?: return
-            val info = currentEditorInfo ?: return
+            // Kis késleltetés majd visszalépés
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    // Először próbáljuk a Shift+Tab-ot (standard visszalépés)
+                    val eventTime = System.currentTimeMillis()
+                    val downEvent = KeyEvent(
+                        eventTime,
+                        eventTime,
+                        KeyEvent.ACTION_DOWN,
+                        KeyEvent.KEYCODE_TAB,
+                        0,
+                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                    )
+                    val upEvent = KeyEvent(
+                        eventTime,
+                        eventTime,
+                        KeyEvent.ACTION_UP,
+                        KeyEvent.KEYCODE_TAB,
+                        0,
+                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                    )
+                    currentInputConnection?.sendKeyEvent(downEvent)
+                    currentInputConnection?.sendKeyEvent(upEvent)
 
-            val inputType = info.inputType
-
-            // Heurisztika: OTP mezők jellemzői
-            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
-            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
-
-            val isLikelyOTPField = isNumberType || isTextType
-
-            // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
-            if (isLikelyOTPField) {
-                // Kis késleltetés
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    try {
-                        // Shift+Tab kombináció küldése, ami általában az előző mezőre lép
-                        // Ez webes és natív formoknál is működik
-                        val eventTime = System.currentTimeMillis()
-                        val downEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_DOWN,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                        )
-                        val upEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_UP,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                        )
-                        currentInputConnection?.sendKeyEvent(downEvent)
-                        currentInputConnection?.sendKeyEvent(upEvent)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }, 100) // 100ms késleltetés
-            }
+                    // Fallback: DPAD_LEFT próbálkozás is
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_LEFT)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }, 50)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }, 50) // Gyors reakció backspace-re
         } catch (e: Exception) {
             e.printStackTrace()
         }
