@@ -872,9 +872,14 @@ class GlideIMEService : InputMethodService() {
             val isWebPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD) != 0
             val isMultiLine = (inputType and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE) != 0
 
+            // KERESŐMEZŐK kizárása (ez volt a probléma!)
+            val isFilterField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_FILTER) != 0
+            val isWebEditTextField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT) != 0
+
             // Ha kizárt típus, akkor NEM navigálunk
             return !(isUrlField || isEmailField || isWebEmailField ||
-                     isPasswordField || isWebPasswordField || isMultiLine)
+                     isPasswordField || isWebPasswordField || isMultiLine ||
+                     isFilterField || isWebEditTextField)
         } catch (e: Exception) {
             return false
         }
@@ -891,64 +896,49 @@ class GlideIMEService : InputMethodService() {
             val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
             val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
-            // Csak 1 karakteres mezőknél próbáljuk
-            if (currentTextLength != 1) return
-
-            // Ellenőrizzük hogy auto-navigate-elhető-e
-            if (!shouldAutoNavigate()) return
-
+            val inputType = info.inputType
             val imeOptions = info.imeOptions
-            val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
-            // Agresszív multi-method megközelítés: több módszert próbálunk egymás után
+            // OTP feltétel: 1 karakter ÉS engedélyezett mező típus
+            val isOneCharacter = currentTextLength == 1
+            val isAllowedField = shouldAutoNavigate()
+
+            if (!isOneCharacter || !isAllowedField) return
+
+            // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 try {
+                    val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
                     if (hasNextAction) {
-                        // 1. IME_ACTION_NEXT (natív Android)
+                        // Natív Android mezők: IME_ACTION_NEXT
                         currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                    } else {
+                        // Webes formok: Tab KeyEvent küldése
+                        val eventTime = System.currentTimeMillis()
+                        val tabDownEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            0
+                        )
+                        val tabUpEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            0
+                        )
+                        currentInputConnection?.sendKeyEvent(tabDownEvent)
+                        currentInputConnection?.sendKeyEvent(tabUpEvent)
                     }
-
-                    // 2. Tab KeyEvent sendKeyEvent-tel (webes formokhoz)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        try {
-                            val eventTime = System.currentTimeMillis()
-                            currentInputConnection?.sendKeyEvent(KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB, 0))
-                            currentInputConnection?.sendKeyEvent(KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_TAB, 0))
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, 50)
-
-                    // 3. Tab sendDownUpKeyEvents-tel
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        try {
-                            sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, 100)
-
-                    // 4. DPAD_RIGHT
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        try {
-                            sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, 150)
-
-                    // 5. ENTER (utolsó próbálkozás - néha ez is működik)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        try {
-                            sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, 200)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-            }, 50) // Kezdő késleltetés
+            }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
         } catch (e: Exception) {
             e.printStackTrace()
         }
