@@ -411,15 +411,13 @@ class GlideIMEService : InputMethodService() {
                     }
 
                     // Ellenőrizzük a mező tartalmát
-                    val textBefore = ic.getTextBeforeCursor(10, 0) ?: ""
-                    val textAfter = ic.getTextAfterCursor(10, 0) ?: ""
+                    val textBefore = ic.getTextBeforeCursor(1, 0) ?: ""
+                    val textAfter = ic.getTextAfterCursor(1, 0) ?: ""
 
-                    // Ha a mező üres ÉS OTP-szerű, visszalépünk az előző mezőre
+                    // Ha a mező üres, visszalépünk az előző mezőre (egyszerű logika, mint a 7a23fd9-ben)
                     if (textBefore.isEmpty() && textAfter.isEmpty()) {
-                        if (shouldAutoNavigate()) {
-                            checkAndRetreatToPreviousField()
-                            return true
-                        }
+                        checkAndRetreatToPreviousField()
+                        return true
                     }
 
                     // Normál törlés - egy karakter
@@ -899,46 +897,55 @@ class GlideIMEService : InputMethodService() {
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
-            // OTP feltétel: 1 karakter ÉS engedélyezett mező típus
-            val isOneCharacter = currentTextLength == 1
-            val isAllowedField = shouldAutoNavigate()
+            // Heurisztika: OTP mezők jellemzői
+            // 1. NUMBER típusú inputType
+            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
 
-            if (!isOneCharacter || !isAllowedField) return
+            // 2. TEXT típusú
+            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
-            // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                try {
-                    val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+            // 3. Általános heurisztika: ha a mező 1 karakteres, valószínűleg OTP
+            // Webes formok gyakran 1 karakteres mezőket használnak OTP-hez
+            val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
 
-                    if (hasNextAction) {
-                        // Natív Android mezők: IME_ACTION_NEXT
-                        currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                    } else {
-                        // Webes formok: Tab KeyEvent küldése
-                        val eventTime = System.currentTimeMillis()
-                        val tabDownEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_DOWN,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            0
-                        )
-                        val tabUpEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_UP,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            0
-                        )
-                        currentInputConnection?.sendKeyEvent(tabDownEvent)
-                        currentInputConnection?.sendKeyEvent(tabUpEvent)
+            // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
+            if (isLikelyOTPField) {
+                // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
+                        // Többféle navigációs módszert próbálunk
+                        if (hasNextAction) {
+                            // Natív Android mezők: IME_ACTION_NEXT
+                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                        } else {
+                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
+                            val eventTime = System.currentTimeMillis()
+                            val tabDownEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_DOWN,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            val tabUpEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_UP,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            currentInputConnection?.sendKeyEvent(tabDownEvent)
+                            currentInputConnection?.sendKeyEvent(tabUpEvent)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
+                }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
