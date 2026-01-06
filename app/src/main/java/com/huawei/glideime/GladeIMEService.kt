@@ -861,36 +861,36 @@ class GlideIMEService : InputMethodService() {
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
-            // Ellenőrizzük, hogy van-e következő mező
-            val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
-            if (!hasNextAction) {
-                // Nincs következő mező, nem ugrunk sehova
-                return
-            }
-
             // Heurisztika: OTP mezők jellemzői
             // 1. NUMBER típusú inputType
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
 
-            // 2. TEXT típusú, de rövid (max 3 karakter)
+            // 2. TEXT típusú
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
-            val isShortField = currentTextLength in 1..3
 
-            // 3. Általános heurisztika: ha a mező 1-2 karakteres, valószínűleg OTP
-            val isLikelyOTPField = (isNumberType && currentTextLength >= 1) ||
-                                    (isTextType && isShortField && currentTextLength >= 1)
+            // 3. Általános heurisztika: ha a mező 1 karakteres, valószínűleg OTP
+            // Webes formok gyakran 1 karakteres mezőket használnak OTP-hez
+            val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
 
-            // Ha OTP mező és betelt legalább 1 karakterrel, ugrás a következő mezőre
+            // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
             if (isLikelyOTPField) {
                 // Kis késleltetés, hogy az input stabilizálódjon
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
-                        currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                        // Először próbáljuk az IME_ACTION_NEXT-et (natív Android mezőkhöz)
+                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
+                        if (hasNextAction) {
+                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                        } else {
+                            // Ha nincs ACTION_NEXT (pl. webes formok), küldünk egy Tab billentyűt
+                            // Ez a legtöbb webes OTP formnál működik
+                            sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-                }, 50) // 50ms késleltetés
+                }, 100) // 100ms késleltetés a stabilitás érdekében
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -904,12 +904,6 @@ class GlideIMEService : InputMethodService() {
             val info = currentEditorInfo ?: return
 
             val inputType = info.inputType
-            val imeOptions = info.imeOptions
-
-            // Ellenőrizzük, hogy van-e előző mező (ACTION_PREVIOUS)
-            // Sajnos az Android nem mindig támogatja az ACTION_PREVIOUS-t jól,
-            // de megpróbálhatjuk
-            val hasPreviousAction = (imeOptions and EditorInfo.IME_ACTION_PREVIOUS) != 0
 
             // Heurisztika: OTP mezők jellemzői
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
@@ -923,6 +917,7 @@ class GlideIMEService : InputMethodService() {
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
                         // Shift+Tab kombináció küldése, ami általában az előző mezőre lép
+                        // Ez webes és natív formoknál is működik
                         val eventTime = System.currentTimeMillis()
                         val downEvent = KeyEvent(
                             eventTime,
@@ -945,7 +940,7 @@ class GlideIMEService : InputMethodService() {
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-                }, 50) // 50ms késleltetés
+                }, 100) // 100ms késleltetés
             }
         } catch (e: Exception) {
             e.printStackTrace()
