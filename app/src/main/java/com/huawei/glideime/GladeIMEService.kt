@@ -870,38 +870,35 @@ class GlideIMEService : InputMethodService() {
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
-            // SZIGORÚBB Heurisztika: OTP mezők jellemzői
-            // Csak akkor aktiválódik, ha BIZTOSAN OTP mező
+            // Kiegyensúlyozott heurisztika: Működjön OTP mezőknél, de ne böngésző címsoroknál
 
-            // 1. NUMBER típusú inputType (OTP mezők gyakran csak számok)
-            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
-
-            // 2. Van NEXT action (ezt az OTP formok általában beállítják)
-            val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
-            // 3. A mező pontosan 1 karakter hosszú
+            // 1. A mező pontosan 1 karakter hosszú (fő jellemző)
             val isOneCharacter = currentTextLength == 1
 
-            // 4. NEM URL mező (böngésző keresőmező kizárása)
-            val isNotUrlField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_URI) == 0
+            // 2. BIZTOSAN KIZÁRJUK ezeket:
+            val isUrlField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_URI) != 0
+            val isEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0
+            val isWebEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0
+            val isPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0
+            val isWebPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD) != 0
 
-            // 5. NEM email mező
-            val isNotEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) == 0
+            // Hosszú több soros szövegmezők kizárása
+            val isMultiLine = (inputType and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE) != 0
 
-            // 6. NEM web email mező
-            val isNotWebEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) == 0
+            // Ha bármelyik kizárt típus, akkor NEM OTP
+            val isExcludedField = isUrlField || isEmailField || isWebEmailField ||
+                                   isPasswordField || isWebPasswordField || isMultiLine
 
-            // OTP mező feltételek:
-            // - VAGY: NUMBER típusú ÉS 1 karakter (legbiztosabb)
-            // - VAGY: Van NEXT action ÉS 1 karakter ÉS nem URL/email mező
-            val isLikelyOTPField = (isNumberType && isOneCharacter) ||
-                                    (hasNextAction && isOneCharacter && isNotUrlField && isNotEmailField && isNotWebEmailField)
+            // OTP feltétel: 1 karakter ÉS nem kizárt mező típus
+            val isLikelyOTPField = isOneCharacter && !isExcludedField
 
             // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
             if (isLikelyOTPField) {
                 // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
+                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
                         // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
                             // Natív Android mezők: IME_ACTION_NEXT
