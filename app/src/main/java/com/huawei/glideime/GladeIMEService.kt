@@ -399,7 +399,21 @@ class GlideIMEService : InputMethodService() {
 
             // Backspace (Delete backward)
             if (keyCode == KeyEvent.KEYCODE_DEL) {
-                currentInputConnection?.deleteSurroundingText(1, 0)
+                // Ellenőrizzük, hogy üres-e a mező
+                val ic = currentInputConnection
+                if (ic != null) {
+                    val textBefore = ic.getTextBeforeCursor(1, 0)
+                    val textAfter = ic.getTextAfterCursor(1, 0)
+
+                    // Ha a mező üres, visszalépünk az előző mezőre
+                    if ((textBefore == null || textBefore.isEmpty()) &&
+                        (textAfter == null || textAfter.isEmpty())) {
+                        checkAndRetreatToPreviousField()
+                    } else {
+                        // Normál törlés
+                        ic.deleteSurroundingText(1, 0)
+                    }
+                }
                 return true
             }
 
@@ -541,6 +555,10 @@ class GlideIMEService : InputMethodService() {
 
                 if (character.isNotEmpty()) {
                     currentInputConnection?.commitText(character, 1)
+
+                    // OTP mezők automatikus továbbítása
+                    checkAndAdvanceToNextField()
+
                     return true
                 }
             }
@@ -823,6 +841,111 @@ class GlideIMEService : InputMethodService() {
 
             if (deleteCount > 0) {
                 ic.deleteSurroundingText(0, deleteCount)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // OTP mezők automatikus továbbítása (egyszeri jelszó beviteli mezők)
+    private fun checkAndAdvanceToNextField() {
+        try {
+            val ic = currentInputConnection ?: return
+            val info = currentEditorInfo ?: return
+
+            // Lekérdezzük a mező jelenlegi tartalmát
+            val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
+            val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
+            val currentTextLength = textBeforeCursor.length + textAfterCursor.length
+
+            val inputType = info.inputType
+            val imeOptions = info.imeOptions
+
+            // Ellenőrizzük, hogy van-e következő mező
+            val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
+            if (!hasNextAction) {
+                // Nincs következő mező, nem ugrunk sehova
+                return
+            }
+
+            // Heurisztika: OTP mezők jellemzői
+            // 1. NUMBER típusú inputType
+            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+
+            // 2. TEXT típusú, de rövid (max 3 karakter)
+            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
+            val isShortField = currentTextLength in 1..3
+
+            // 3. Általános heurisztika: ha a mező 1-2 karakteres, valószínűleg OTP
+            val isLikelyOTPField = (isNumberType && currentTextLength >= 1) ||
+                                    (isTextType && isShortField && currentTextLength >= 1)
+
+            // Ha OTP mező és betelt legalább 1 karakterrel, ugrás a következő mezőre
+            if (isLikelyOTPField) {
+                // Kis késleltetés, hogy az input stabilizálódjon
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }, 50) // 50ms késleltetés
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
+    private fun checkAndRetreatToPreviousField() {
+        try {
+            val ic = currentInputConnection ?: return
+            val info = currentEditorInfo ?: return
+
+            val inputType = info.inputType
+            val imeOptions = info.imeOptions
+
+            // Ellenőrizzük, hogy van-e előző mező (ACTION_PREVIOUS)
+            // Sajnos az Android nem mindig támogatja az ACTION_PREVIOUS-t jól,
+            // de megpróbálhatjuk
+            val hasPreviousAction = (imeOptions and EditorInfo.IME_ACTION_PREVIOUS) != 0
+
+            // Heurisztika: OTP mezők jellemzői
+            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
+
+            val isLikelyOTPField = isNumberType || isTextType
+
+            // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
+            if (isLikelyOTPField) {
+                // Kis késleltetés
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        // Shift+Tab kombináció küldése, ami általában az előző mezőre lép
+                        val eventTime = System.currentTimeMillis()
+                        val downEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                        )
+                        val upEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                        )
+                        currentInputConnection?.sendKeyEvent(downEvent)
+                        currentInputConnection?.sendKeyEvent(upEvent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }, 50) // 50ms késleltetés
             }
         } catch (e: Exception) {
             e.printStackTrace()
