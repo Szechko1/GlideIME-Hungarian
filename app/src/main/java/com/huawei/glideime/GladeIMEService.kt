@@ -898,32 +898,57 @@ class GlideIMEService : InputMethodService() {
             if (!shouldAutoNavigate()) return
 
             val imeOptions = info.imeOptions
+            val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
-            // Rövid késleltetés majd navigáció
+            // Agresszív multi-method megközelítés: több módszert próbálunk egymás után
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 try {
-                    val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
-                    // Próbáljuk IME_ACTION_NEXT-et először
                     if (hasNextAction) {
+                        // 1. IME_ACTION_NEXT (natív Android)
                         currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                    } else {
-                        // Fallback: DPAD_RIGHT próbálkozás (néha működik jobban mint Tab)
-                        sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
-
-                        // Ha az sem működött, próbáljuk a Tab-ot is
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            try {
-                                sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }, 50)
                     }
+
+                    // 2. Tab KeyEvent sendKeyEvent-tel (webes formokhoz)
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            val eventTime = System.currentTimeMillis()
+                            currentInputConnection?.sendKeyEvent(KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB, 0))
+                            currentInputConnection?.sendKeyEvent(KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_TAB, 0))
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }, 50)
+
+                    // 3. Tab sendDownUpKeyEvents-tel
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }, 100)
+
+                    // 4. DPAD_RIGHT
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }, 150)
+
+                    // 5. ENTER (utolsó próbálkozás - néha ez is működik)
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }, 200)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-            }, 100) // 100ms késleltetés
+            }, 50) // Kezdő késleltetés
         } catch (e: Exception) {
             e.printStackTrace()
         }
