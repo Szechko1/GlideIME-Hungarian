@@ -995,6 +995,8 @@ class GlideIMEService : InputMethodService() {
 
             val isLikelyOTPField = isNumberType || isTextType
 
+            showToast("isLikelyOTP=$isLikelyOTPField")
+
             // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
             if (isLikelyOTPField) {
                 showToast("Retreat: MOST küldés")
