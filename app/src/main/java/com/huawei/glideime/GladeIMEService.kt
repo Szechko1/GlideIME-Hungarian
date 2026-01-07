@@ -3,6 +3,7 @@ package com.huawei.glideime
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
