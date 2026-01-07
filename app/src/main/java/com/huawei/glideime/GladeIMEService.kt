@@ -890,6 +890,7 @@ class GlideIMEService : InputMethodService() {
             val info = currentEditorInfo ?: return
 
             val inputType = info.inputType
+            val imeOptions = info.imeOptions
 
             // Csak NUMBER vagy TEXT mezőknél
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
@@ -897,34 +898,49 @@ class GlideIMEService : InputMethodService() {
 
             if (!isNumberType && !isTextType) return
 
-            // MINDIG próbáljuk meg a DPAD_RIGHT-ot NUMBER/TEXT mezőknél
-            // (a commitText után a textLength még nem frissült, ezért ne ellenőrizzük)
+            // KIZÁRÁSOK: mezők ahol NEM akarunk auto-advance-t (pl. böngésző keresőmező)
+            // Keresőmező detektálása:
+            val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
+            val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
+
+            // Ne használjuk keresőmezőkben és címsorban
+            if (isSearchField || isGoField) return
+
+            // Hosszabb késleltetés, hogy a mező tartalma frissüljön
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 try {
-                    // DPAD_RIGHT ugyanazzal a módszerrel mint a retreat (InputConnection.sendKeyEvent)
+                    // MOST ellenőrizzük a mező hosszát (a commitText után)
+                    val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
+                    val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
+                    val currentTextLength = textBeforeCursor.length + textAfterCursor.length
+
+                    // Csak ha pontosan 1 karakter van a mezőben (OTP jellemző)
+                    if (currentTextLength != 1) return@postDelayed
+
+                    // Tab KeyEvent - ez működött a 7a23fd9 verzióban!
                     val eventTime = System.currentTimeMillis()
-                    val downEvent = KeyEvent(
+                    val tabDownEvent = KeyEvent(
                         eventTime,
                         eventTime,
                         KeyEvent.ACTION_DOWN,
-                        KeyEvent.KEYCODE_DPAD_RIGHT,
+                        KeyEvent.KEYCODE_TAB,
                         0,
                         0
                     )
-                    val upEvent = KeyEvent(
+                    val tabUpEvent = KeyEvent(
                         eventTime,
                         eventTime,
                         KeyEvent.ACTION_UP,
-                        KeyEvent.KEYCODE_DPAD_RIGHT,
+                        KeyEvent.KEYCODE_TAB,
                         0,
                         0
                     )
-                    currentInputConnection?.sendKeyEvent(downEvent)
-                    currentInputConnection?.sendKeyEvent(upEvent)
+                    currentInputConnection?.sendKeyEvent(tabDownEvent)
+                    currentInputConnection?.sendKeyEvent(tabUpEvent)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-            }, 100) // 100ms késleltetés
+            }, 150) // 150ms késleltetés - több idő a commitText feldolgozásához
         } catch (e: Exception) {
             e.printStackTrace()
         }
