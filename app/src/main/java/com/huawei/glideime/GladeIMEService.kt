@@ -563,13 +563,18 @@ class GlideIMEService : InputMethodService() {
                 }
 
                 if (character.isNotEmpty()) {
-                    currentInputConnection?.commitText(character, 1)
+                    // KRITIKUS: Mentsük el az EditorInfo-t MIELŐTT commitText-et hívunk!
+                    // A commitText után a currentEditorInfo null lesz!
+                    val ic = currentInputConnection
+                    val editorInfo = currentEditorInfo
+
+                    ic?.commitText(character, 1)
 
                     // DEBUG: Ellenőrizzük hogy egyáltalán idáig eljutunk-e
                     showToast("Beírva: $character")
 
-                    // OTP mezők automatikus továbbítása
-                    checkAndAdvanceToNextField()
+                    // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
+                    checkAndAdvanceToNextField(ic, editorInfo)
 
                     return true
                 }
@@ -860,18 +865,16 @@ class GlideIMEService : InputMethodService() {
     }
 
     // OTP mezők automatikus továbbítása (egyszeri jelszó beviteli mezők)
-    private fun checkAndAdvanceToNextField() {
+    private fun checkAndAdvanceToNextField(ic: InputConnection?, info: EditorInfo?) {
         // DEBUG: függvény meghívva
         showToast("checkAndAdvance HÍVVA")
 
         try {
-            val ic = currentInputConnection
             if (ic == null) {
                 showToast("inputConnection NULL!")
                 return
             }
 
-            val info = currentEditorInfo
             if (info == null) {
                 showToast("editorInfo NULL!")
                 return
@@ -915,7 +918,7 @@ class GlideIMEService : InputMethodService() {
                         // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
                             // Natív Android mezők: IME_ACTION_NEXT
-                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                            ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
                             showToast("IME_ACTION_NEXT küldve")
                         } else {
                             // Webes formok: Tab KeyEvent küldése
@@ -936,8 +939,8 @@ class GlideIMEService : InputMethodService() {
                                 0,
                                 0
                             )
-                            currentInputConnection?.sendKeyEvent(tabDownEvent)
-                            currentInputConnection?.sendKeyEvent(tabUpEvent)
+                            ic.sendKeyEvent(tabDownEvent)
+                            ic.sendKeyEvent(tabUpEvent)
                             showToast("Tab küldve")
                         }
                     } else {
