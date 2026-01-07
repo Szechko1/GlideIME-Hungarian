@@ -889,44 +889,24 @@ class GlideIMEService : InputMethodService() {
             val ic = currentInputConnection ?: return
             val info = currentEditorInfo ?: return
 
-            // Lekérdezzük a mező jelenlegi tartalmát
-            val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
-            val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
-            val currentTextLength = textBeforeCursor.length + textAfterCursor.length
-
             val inputType = info.inputType
-            val imeOptions = info.imeOptions
 
-            // Heurisztika: OTP mezők jellemzői
-            // 1. NUMBER típusú inputType
+            // Csak NUMBER vagy TEXT mezőknél
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
-
-            // 2. TEXT típusú
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
-            // 3. Általános heurisztika: ha a mező 1 karakteres, valószínűleg OTP
-            // Webes formok gyakran 1 karakteres mezőket használnak OTP-hez
-            val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
+            if (!isNumberType && !isTextType) return
 
-            // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
-            if (isLikelyOTPField) {
-                // Rövid késleltetés majd DPAD_RIGHT (ami bizonyítottan működik!)
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    try {
-                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
-                        if (hasNextAction) {
-                            // Natív Android mezők: IME_ACTION_NEXT
-                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                        } else {
-                            // Webes formok: DPAD_RIGHT működik! (user megerősítette)
-                            sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }, 100) // 100ms késleltetés
-            }
+            // MINDIG próbáljuk meg a DPAD_RIGHT-ot NUMBER/TEXT mezőknél
+            // (a commitText után a textLength még nem frissült, ezért ne ellenőrizzük)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    // DPAD_RIGHT működik! (user megerősítette)
+                    sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }, 100) // 100ms késleltetés
         } catch (e: Exception) {
             e.printStackTrace()
         }
