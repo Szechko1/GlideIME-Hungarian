@@ -565,6 +565,9 @@ class GlideIMEService : InputMethodService() {
                 if (character.isNotEmpty()) {
                     currentInputConnection?.commitText(character, 1)
 
+                    // DEBUG: Ellenőrizzük hogy egyáltalán idáig eljutunk-e
+                    showToast("Beírva: $character")
+
                     // OTP mezők automatikus továbbítása
                     checkAndAdvanceToNextField()
 
