@@ -888,11 +888,21 @@ class GlideIMEService : InputMethodService() {
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
+            // KIZÁRÁSOK: böngésző keresőmező és címsor
+            val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
+            val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
+
             // DEBUG: mutassuk meg a mező típusát
-            showToast("Típus: NUM=$isNumberType TEXT=$isTextType")
+            showToast("Típus: NUM=$isNumberType TEXT=$isTextType SEARCH=$isSearchField")
 
             if (!isNumberType && !isTextType) {
                 showToast("Nem NUM/TEXT - kilép")
+                return
+            }
+
+            // Böngésző keresőmezőben és címsorban NEM ugrunk
+            if (isSearchField || isGoField) {
+                showToast("Keresőmező/címsor - kilép")
                 return
             }
 
@@ -962,7 +972,7 @@ class GlideIMEService : InputMethodService() {
     private fun checkAndRetreatToPreviousField() {
         try {
             val ic = currentInputConnection ?: return
-            val info = currentEditorInfo ?: return
+            val info = currentInputEditorInfo ?: return  // Használjuk a beépített property-t!
 
             val inputType = info.inputType
 
