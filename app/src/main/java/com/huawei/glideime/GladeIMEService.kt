@@ -861,9 +861,21 @@ class GlideIMEService : InputMethodService() {
 
     // OTP mezők automatikus továbbítása (egyszeri jelszó beviteli mezők)
     private fun checkAndAdvanceToNextField() {
+        // DEBUG: függvény meghívva
+        showToast("checkAndAdvance HÍVVA")
+
         try {
-            val ic = currentInputConnection ?: return
-            val info = currentEditorInfo ?: return
+            val ic = currentInputConnection
+            if (ic == null) {
+                showToast("inputConnection NULL!")
+                return
+            }
+
+            val info = currentEditorInfo
+            if (info == null) {
+                showToast("editorInfo NULL!")
+                return
+            }
 
             val inputType = info.inputType
             val imeOptions = info.imeOptions
