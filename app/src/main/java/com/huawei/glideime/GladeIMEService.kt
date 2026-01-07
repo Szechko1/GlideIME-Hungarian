@@ -913,34 +913,35 @@ class GlideIMEService : InputMethodService() {
                 // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
-                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+                        // Tab KeyEvent küldése (mint a retreat-nél a Shift+Tab)
+                        val eventTime = System.currentTimeMillis()
+                        val tabDownEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            0
+                        )
+                        val tabUpEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            0
+                        )
+                        currentInputConnection?.sendKeyEvent(tabDownEvent)
+                        currentInputConnection?.sendKeyEvent(tabUpEvent)
 
-                        // Többféle navigációs módszert próbálunk
-                        if (hasNextAction) {
-                            // Natív Android mezők: IME_ACTION_NEXT
-                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                        } else {
-                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
-                            val eventTime = System.currentTimeMillis()
-                            val tabDownEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_DOWN,
-                                KeyEvent.KEYCODE_TAB,
-                                0,
-                                0
-                            )
-                            val tabUpEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_UP,
-                                KeyEvent.KEYCODE_TAB,
-                                0,
-                                0
-                            )
-                            currentInputConnection?.sendKeyEvent(tabDownEvent)
-                            currentInputConnection?.sendKeyEvent(tabUpEvent)
-                        }
+                        // Fallback: DPAD_RIGHT próbálkozás is (mint a retreat-nél a DPAD_LEFT)
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            try {
+                                sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }, 50)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
