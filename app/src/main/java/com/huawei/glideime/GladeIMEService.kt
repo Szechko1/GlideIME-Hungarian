@@ -892,55 +892,53 @@ class GlideIMEService : InputMethodService() {
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
-            // Csak NUMBER vagy TEXT mezőknél
+            // KIZÁRÁSOK ELŐSZÖR: mezők ahol NEM akarunk auto-advance-t
+            val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
+            val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
+            if (isSearchField || isGoField) return
+
+            // Lekérdezzük a mező jelenlegi tartalmát AZONNAL (mint a 7a23fd9-ben)
+            val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
+            val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
+            val currentTextLength = textBeforeCursor.length + textAfterCursor.length
+
+            // Típus ellenőrzések
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
-            if (!isNumberType && !isTextType) return
+            // PONTOSAN a 7a23fd9 heurisztika: 1 karakter + NUMBER vagy TEXT
+            val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
 
-            // KIZÁRÁSOK: mezők ahol NEM akarunk auto-advance-t (pl. böngésző keresőmező)
-            // Keresőmező detektálása:
-            val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
-            val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
-
-            // Ne használjuk keresőmezőkben és címsorban
-            if (isSearchField || isGoField) return
-
-            // Hosszabb késleltetés, hogy a mező tartalma frissüljön
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                try {
-                    // MOST ellenőrizzük a mező hosszát (a commitText után)
-                    val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
-                    val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
-                    val currentTextLength = textBeforeCursor.length + textAfterCursor.length
-
-                    // Csak ha pontosan 1 karakter van a mezőben (OTP jellemző)
-                    if (currentTextLength != 1) return@postDelayed
-
-                    // Tab KeyEvent - ez működött a 7a23fd9 verzióban!
-                    val eventTime = System.currentTimeMillis()
-                    val tabDownEvent = KeyEvent(
-                        eventTime,
-                        eventTime,
-                        KeyEvent.ACTION_DOWN,
-                        KeyEvent.KEYCODE_TAB,
-                        0,
-                        0
-                    )
-                    val tabUpEvent = KeyEvent(
-                        eventTime,
-                        eventTime,
-                        KeyEvent.ACTION_UP,
-                        KeyEvent.KEYCODE_TAB,
-                        0,
-                        0
-                    )
-                    currentInputConnection?.sendKeyEvent(tabDownEvent)
-                    currentInputConnection?.sendKeyEvent(tabUpEvent)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }, 150) // 150ms késleltetés - több idő a commitText feldolgozásához
+            // Csak akkor indítunk Handler-t, ha valóban OTP mezőnek tűnik!
+            if (isLikelyOTPField) {
+                // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        // Tab KeyEvent küldése - ez működött a 7a23fd9 verzióban!
+                        val eventTime = System.currentTimeMillis()
+                        val tabDownEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            0
+                        )
+                        val tabUpEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            0
+                        )
+                        currentInputConnection?.sendKeyEvent(tabDownEvent)
+                        currentInputConnection?.sendKeyEvent(tabUpEvent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }, 150) // 150ms késleltetés
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
