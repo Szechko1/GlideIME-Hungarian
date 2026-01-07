@@ -889,55 +889,62 @@ class GlideIMEService : InputMethodService() {
             val ic = currentInputConnection ?: return
             val info = currentEditorInfo ?: return
 
-            val inputType = info.inputType
-            val imeOptions = info.imeOptions
-
-            // KIZÁRÁSOK ELŐSZÖR: mezők ahol NEM akarunk auto-advance-t
-            val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
-            val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
-            if (isSearchField || isGoField) return
-
-            // Lekérdezzük a mező jelenlegi tartalmát AZONNAL (mint a 7a23fd9-ben)
+            // Lekérdezzük a mező jelenlegi tartalmát
             val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
             val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
             val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
-            // Típus ellenőrzések
+            val inputType = info.inputType
+            val imeOptions = info.imeOptions
+
+            // Heurisztika: OTP mezők jellemzői
+            // 1. NUMBER típusú inputType
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+
+            // 2. TEXT típusú
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
-            // PONTOSAN a 7a23fd9 heurisztika: 1 karakter + NUMBER vagy TEXT
+            // 3. Általános heurisztika: ha a mező 1 karakteres, valószínűleg OTP
+            // Webes formok gyakran 1 karakteres mezőket használnak OTP-hez
             val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
 
-            // Csak akkor indítunk Handler-t, ha valóban OTP mezőnek tűnik!
+            // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
             if (isLikelyOTPField) {
                 // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
-                        // Tab KeyEvent küldése - ez működött a 7a23fd9 verzióban!
-                        val eventTime = System.currentTimeMillis()
-                        val tabDownEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_DOWN,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            0
-                        )
-                        val tabUpEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_UP,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            0
-                        )
-                        currentInputConnection?.sendKeyEvent(tabDownEvent)
-                        currentInputConnection?.sendKeyEvent(tabUpEvent)
+                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
+                        // Többféle navigációs módszert próbálunk
+                        if (hasNextAction) {
+                            // Natív Android mezők: IME_ACTION_NEXT
+                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                        } else {
+                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
+                            val eventTime = System.currentTimeMillis()
+                            val tabDownEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_DOWN,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            val tabUpEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_UP,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            currentInputConnection?.sendKeyEvent(tabDownEvent)
+                            currentInputConnection?.sendKeyEvent(tabUpEvent)
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-                }, 150) // 150ms késleltetés
+                }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
             }
         } catch (e: Exception) {
             e.printStackTrace()
