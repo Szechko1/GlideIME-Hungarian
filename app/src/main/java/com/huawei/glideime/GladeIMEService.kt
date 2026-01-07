@@ -901,8 +901,26 @@ class GlideIMEService : InputMethodService() {
             // (a commitText után a textLength még nem frissült, ezért ne ellenőrizzük)
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 try {
-                    // DPAD_RIGHT működik! (user megerősítette)
-                    sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
+                    // DPAD_RIGHT ugyanazzal a módszerrel mint a retreat (InputConnection.sendKeyEvent)
+                    val eventTime = System.currentTimeMillis()
+                    val downEvent = KeyEvent(
+                        eventTime,
+                        eventTime,
+                        KeyEvent.ACTION_DOWN,
+                        KeyEvent.KEYCODE_DPAD_RIGHT,
+                        0,
+                        0
+                    )
+                    val upEvent = KeyEvent(
+                        eventTime,
+                        eventTime,
+                        KeyEvent.ACTION_UP,
+                        KeyEvent.KEYCODE_DPAD_RIGHT,
+                        0,
+                        0
+                    )
+                    currentInputConnection?.sendKeyEvent(downEvent)
+                    currentInputConnection?.sendKeyEvent(upEvent)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
