@@ -410,18 +410,18 @@ class GlideIMEService : InputMethodService() {
                         return true
                     }
 
-                    // Ellenőrizzük a mező tartalmát
-                    val textBefore = ic.getTextBeforeCursor(1, 0) ?: ""
-                    val textAfter = ic.getTextAfterCursor(1, 0) ?: ""
+                    // Ha nincs kijelölt szöveg, ellenőrizzük hogy üres-e a mező
+                    val textBefore = ic.getTextBeforeCursor(1, 0)
+                    val textAfter = ic.getTextAfterCursor(1, 0)
 
-                    // Ha a mező üres, visszalépünk az előző mezőre (egyszerű logika, mint a 7a23fd9-ben)
-                    if (textBefore.isEmpty() && textAfter.isEmpty()) {
+                    // Ha a mező üres, visszalépünk az előző mezőre
+                    if ((textBefore == null || textBefore.isEmpty()) &&
+                        (textAfter == null || textAfter.isEmpty())) {
                         checkAndRetreatToPreviousField()
-                        return true
+                    } else {
+                        // Normál törlés - egy karakter
+                        ic.deleteSurroundingText(1, 0)
                     }
-
-                    // Normál törlés - egy karakter
-                    ic.deleteSurroundingText(1, 0)
                 }
                 return true
             }
@@ -856,33 +856,6 @@ class GlideIMEService : InputMethodService() {
         }
     }
 
-    // Ellenőrzi hogy OTP-szerű mező-e (auto-navigate-hez használt)
-    private fun shouldAutoNavigate(): Boolean {
-        try {
-            val info = currentEditorInfo ?: return false
-            val inputType = info.inputType
-
-            // BIZTOSAN KIZÁRJUK ezeket:
-            val isUrlField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_URI) != 0
-            val isEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0
-            val isWebEmailField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0
-            val isPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0
-            val isWebPasswordField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD) != 0
-            val isMultiLine = (inputType and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE) != 0
-
-            // KERESŐMEZŐK kizárása (ez volt a probléma!)
-            val isFilterField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_FILTER) != 0
-            val isWebEditTextField = (inputType and EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT) != 0
-
-            // Ha kizárt típus, akkor NEM navigálunk
-            return !(isUrlField || isEmailField || isWebEmailField ||
-                     isPasswordField || isWebPasswordField || isMultiLine ||
-                     isFilterField || isWebEditTextField)
-        } catch (e: Exception) {
-            return false
-        }
-    }
-
     // OTP mezők automatikus továbbítása (egyszeri jelszó beviteli mezők)
     private fun checkAndAdvanceToNextField() {
         try {
@@ -913,35 +886,34 @@ class GlideIMEService : InputMethodService() {
                 // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
-                        // Tab KeyEvent küldése (mint a retreat-nél a Shift+Tab)
-                        val eventTime = System.currentTimeMillis()
-                        val tabDownEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_DOWN,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            0
-                        )
-                        val tabUpEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_UP,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            0
-                        )
-                        currentInputConnection?.sendKeyEvent(tabDownEvent)
-                        currentInputConnection?.sendKeyEvent(tabUpEvent)
+                        val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
-                        // Fallback: DPAD_RIGHT próbálkozás is (mint a retreat-nél a DPAD_LEFT)
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            try {
-                                sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }, 50)
+                        // Többféle navigációs módszert próbálunk
+                        if (hasNextAction) {
+                            // Natív Android mezők: IME_ACTION_NEXT
+                            currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                        } else {
+                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
+                            val eventTime = System.currentTimeMillis()
+                            val tabDownEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_DOWN,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            val tabUpEvent = KeyEvent(
+                                eventTime,
+                                eventTime,
+                                KeyEvent.ACTION_UP,
+                                KeyEvent.KEYCODE_TAB,
+                                0,
+                                0
+                            )
+                            currentInputConnection?.sendKeyEvent(tabDownEvent)
+                            currentInputConnection?.sendKeyEvent(tabUpEvent)
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -955,42 +927,48 @@ class GlideIMEService : InputMethodService() {
     // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
     private fun checkAndRetreatToPreviousField() {
         try {
-            // Kis késleltetés majd visszalépés
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                try {
-                    // Először próbáljuk a Shift+Tab-ot (standard visszalépés)
-                    val eventTime = System.currentTimeMillis()
-                    val downEvent = KeyEvent(
-                        eventTime,
-                        eventTime,
-                        KeyEvent.ACTION_DOWN,
-                        KeyEvent.KEYCODE_TAB,
-                        0,
-                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                    )
-                    val upEvent = KeyEvent(
-                        eventTime,
-                        eventTime,
-                        KeyEvent.ACTION_UP,
-                        KeyEvent.KEYCODE_TAB,
-                        0,
-                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                    )
-                    currentInputConnection?.sendKeyEvent(downEvent)
-                    currentInputConnection?.sendKeyEvent(upEvent)
+            val ic = currentInputConnection ?: return
+            val info = currentEditorInfo ?: return
 
-                    // Fallback: DPAD_LEFT próbálkozás is
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        try {
-                            sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_LEFT)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, 50)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }, 50) // Gyors reakció backspace-re
+            val inputType = info.inputType
+
+            // Heurisztika: OTP mezők jellemzői
+            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
+
+            val isLikelyOTPField = isNumberType || isTextType
+
+            // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
+            if (isLikelyOTPField) {
+                // Kis késleltetés
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        // Shift+Tab kombináció küldése, ami általában az előző mezőre lép
+                        // Ez webes és natív formoknál is működik
+                        val eventTime = System.currentTimeMillis()
+                        val downEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_DOWN,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                        )
+                        val upEvent = KeyEvent(
+                            eventTime,
+                            eventTime,
+                            KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_TAB,
+                            0,
+                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                        )
+                        currentInputConnection?.sendKeyEvent(downEvent)
+                        currentInputConnection?.sendKeyEvent(upEvent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }, 100) // 100ms késleltetés
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
