@@ -970,9 +970,20 @@ class GlideIMEService : InputMethodService() {
 
     // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
     private fun checkAndRetreatToPreviousField() {
+        showToast("checkAndRetreat HÍVVA")
+
         try {
-            val ic = currentInputConnection ?: return
-            val info = currentInputEditorInfo ?: return  // Használjuk a beépített property-t!
+            val ic = currentInputConnection
+            if (ic == null) {
+                showToast("Retreat: IC NULL")
+                return
+            }
+
+            val info = currentInputEditorInfo
+            if (info == null) {
+                showToast("Retreat: EditorInfo NULL")
+                return
+            }
 
             val inputType = info.inputType
 
@@ -980,10 +991,13 @@ class GlideIMEService : InputMethodService() {
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
+            showToast("Retreat: NUM=$isNumberType TEXT=$isTextType")
+
             val isLikelyOTPField = isNumberType || isTextType
 
             // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
             if (isLikelyOTPField) {
+                showToast("Retreat: Shift+Tab küldése")
                 // Kis késleltetés
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
@@ -1006,14 +1020,19 @@ class GlideIMEService : InputMethodService() {
                             0,
                             KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
                         )
-                        currentInputConnection?.sendKeyEvent(downEvent)
-                        currentInputConnection?.sendKeyEvent(upEvent)
+                        ic.sendKeyEvent(downEvent)
+                        ic.sendKeyEvent(upEvent)
+                        showToast("Shift+Tab elküldve")
                     } catch (e: Exception) {
+                        showToast("Retreat hiba: ${e.message}")
                         e.printStackTrace()
                     }
                 }, 100) // 100ms késleltetés
+            } else {
+                showToast("Retreat: Nem OTP mező")
             }
         } catch (e: Exception) {
+            showToast("Retreat catch: ${e.message}")
             e.printStackTrace()
         }
     }
