@@ -869,7 +869,13 @@ class GlideIMEService : InputMethodService() {
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
-            if (!isNumberType && !isTextType) return
+            // DEBUG: mutassuk meg a mező típusát
+            showToast("Típus: NUM=$isNumberType TEXT=$isTextType")
+
+            if (!isNumberType && !isTextType) {
+                showToast("Nem NUM/TEXT - kilép")
+                return
+            }
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
             // de a getTextBeforeCursor() még NEM látja az új karaktert!
@@ -882,14 +888,20 @@ class GlideIMEService : InputMethodService() {
                     val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
                     val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
+                    // DEBUG: mutassuk meg a szöveg hosszát
+                    showToast("Hossz: $currentTextLength")
+
                     // Ha pontosan 1 karakter van (OTP jellemző), akkor navigálunk
                     if (currentTextLength == 1) {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+
+                        showToast("Nav: hasNext=$hasNextAction")
 
                         // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
                             // Natív Android mezők: IME_ACTION_NEXT
                             currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                            showToast("IME_ACTION_NEXT küldve")
                         } else {
                             // Webes formok: Tab KeyEvent küldése
                             val eventTime = System.currentTimeMillis()
@@ -911,13 +923,18 @@ class GlideIMEService : InputMethodService() {
                             )
                             currentInputConnection?.sendKeyEvent(tabDownEvent)
                             currentInputConnection?.sendKeyEvent(tabUpEvent)
+                            showToast("Tab küldve")
                         }
+                    } else {
+                        showToast("Nem 1 kar - nem nav")
                     }
                 } catch (e: Exception) {
+                    showToast("Hiba Handler: ${e.message}")
                     e.printStackTrace()
                 }
             }, 200) // 200ms késleltetés - biztos, hogy commitText befejeződött
         } catch (e: Exception) {
+            showToast("Hiba check: ${e.message}")
             e.printStackTrace()
         }
     }
