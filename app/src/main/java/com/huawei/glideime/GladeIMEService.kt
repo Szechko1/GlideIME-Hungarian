@@ -999,35 +999,14 @@ class GlideIMEService : InputMethodService() {
 
             // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
             if (isLikelyOTPField) {
-                showToast("Retreat: MOST küldés")
+                // LONG Toast hogy biztosan látszódjon
+                android.widget.Toast.makeText(this, "IF BELSEJE!", android.widget.Toast.LENGTH_LONG).show()
 
-                try {
-                    // KÖZVETLENÜL küldés, Handler NÉLKÜL!
-                    // Shift+Tab kombináció küldése AZONNAL
-                    val eventTime = System.currentTimeMillis()
-                    val downEvent = KeyEvent(
-                        eventTime,
-                        eventTime,
-                        KeyEvent.ACTION_DOWN,
-                        KeyEvent.KEYCODE_TAB,
-                        0,
-                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                    )
-                    val upEvent = KeyEvent(
-                        eventTime,
-                        eventTime,
-                        KeyEvent.ACTION_UP,
-                        KeyEvent.KEYCODE_TAB,
-                        0,
-                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                    )
-                    ic.sendKeyEvent(downEvent)
-                    ic.sendKeyEvent(upEvent)
-                    showToast("Shift+Tab ELKÜLDVE!")
-                } catch (e: Exception) {
-                    showToast("Retreat Hiba: ${e.message}")
-                    e.printStackTrace()
-                }
+                // Próba: egyszerű Tab (nem Shift+Tab)
+                ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB))
+                ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_TAB))
+
+                android.widget.Toast.makeText(this, "TAB KÜLDVE!", android.widget.Toast.LENGTH_LONG).show()
             } else {
                 showToast("Retreat: Nem OTP mező")
             }
