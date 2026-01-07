@@ -910,41 +910,22 @@ class GlideIMEService : InputMethodService() {
 
             // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
             if (isLikelyOTPField) {
-                // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
+                // Rövid késleltetés majd DPAD_RIGHT (ami bizonyítottan működik!)
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     try {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
-                        // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
                             // Natív Android mezők: IME_ACTION_NEXT
                             currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
                         } else {
-                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
-                            val eventTime = System.currentTimeMillis()
-                            val tabDownEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_DOWN,
-                                KeyEvent.KEYCODE_TAB,
-                                0,
-                                0
-                            )
-                            val tabUpEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_UP,
-                                KeyEvent.KEYCODE_TAB,
-                                0,
-                                0
-                            )
-                            currentInputConnection?.sendKeyEvent(tabDownEvent)
-                            currentInputConnection?.sendKeyEvent(tabUpEvent)
+                            // Webes formok: DPAD_RIGHT működik! (user megerősítette)
+                            sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT)
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-                }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
+                }, 100) // 100ms késleltetés
             }
         } catch (e: Exception) {
             e.printStackTrace()
