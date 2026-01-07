@@ -862,30 +862,28 @@ class GlideIMEService : InputMethodService() {
             val ic = currentInputConnection ?: return
             val info = currentEditorInfo ?: return
 
-            // Lekérdezzük a mező jelenlegi tartalmát
-            val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
-            val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
-            val currentTextLength = textBeforeCursor.length + textAfterCursor.length
-
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
-            // Heurisztika: OTP mezők jellemzői
-            // 1. NUMBER típusú inputType
+            // Alapszűrés: csak NUMBER vagy TEXT mezőknél
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
-
-            // 2. TEXT típusú
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
-            // 3. Általános heurisztika: ha a mező 1 karakteres, valószínűleg OTP
-            // Webes formok gyakran 1 karakteres mezőket használnak OTP-hez
-            val isLikelyOTPField = currentTextLength == 1 && (isNumberType || isTextType)
+            if (!isNumberType && !isTextType) return
 
-            // Ha OTP mező és betelt 1 karakterrel, ugrás a következő mezőre
-            if (isLikelyOTPField) {
-                // Hosszabb késleltetés webes formokhoz (JavaScript feldolgozási idő)
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    try {
+            // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
+            // de a getTextBeforeCursor() még NEM látja az új karaktert!
+            // Ezért MINDENT a Handler-ben kell csinálni, késleltetéssel!
+
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    // MOST ellenőrizzük a szöveg hosszát (a commitText már befejeződött)
+                    val textBeforeCursor = ic.getTextBeforeCursor(100, 0) ?: ""
+                    val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
+                    val currentTextLength = textBeforeCursor.length + textAfterCursor.length
+
+                    // Ha pontosan 1 karakter van (OTP jellemző), akkor navigálunk
+                    if (currentTextLength == 1) {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
                         // Többféle navigációs módszert próbálunk
@@ -893,7 +891,7 @@ class GlideIMEService : InputMethodService() {
                             // Natív Android mezők: IME_ACTION_NEXT
                             currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_NEXT)
                         } else {
-                            // Webes formok: Tab KeyEvent küldése az InputConnection-ön keresztül
+                            // Webes formok: Tab KeyEvent küldése
                             val eventTime = System.currentTimeMillis()
                             val tabDownEvent = KeyEvent(
                                 eventTime,
@@ -914,11 +912,11 @@ class GlideIMEService : InputMethodService() {
                             currentInputConnection?.sendKeyEvent(tabDownEvent)
                             currentInputConnection?.sendKeyEvent(tabUpEvent)
                         }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
                     }
-                }, 150) // 150ms késleltetés - több idő a webes JavaScript-eknek
-            }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }, 200) // 200ms késleltetés - biztos, hogy commitText befejeződött
         } catch (e: Exception) {
             e.printStackTrace()
         }
