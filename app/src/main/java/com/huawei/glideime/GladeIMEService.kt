@@ -565,9 +565,9 @@ class GlideIMEService : InputMethodService() {
 
                 if (character.isNotEmpty()) {
                     // KRITIKUS: Mentsük el az EditorInfo-t MIELŐTT commitText-et hívunk!
-                    // A commitText után a currentEditorInfo null lesz!
+                    // Használjuk a beépített currentInputEditorInfo-t (nem a sajátunkat!)
                     val ic = currentInputConnection
-                    val editorInfo = currentEditorInfo
+                    val editorInfo = currentInputEditorInfo  // InputMethodService beépített property
 
                     ic?.commitText(character, 1)
 
