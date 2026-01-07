@@ -997,45 +997,35 @@ class GlideIMEService : InputMethodService() {
 
             // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
             if (isLikelyOTPField) {
-                showToast("Retreat: Shift+Tab küldése")
-                // Kis késleltetés
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    showToast("Handler fut!")
-                    try {
-                        // currentInputConnection-t közvetlenül használjuk (nem mentett változó)
-                        val connection = currentInputConnection
-                        if (connection == null) {
-                            showToast("Handler: IC null!")
-                            return@postDelayed
-                        }
+                showToast("Retreat: MOST küldés")
 
-                        // Shift+Tab kombináció küldése, ami általában az előző mezőre lép
-                        // Ez webes és natív formoknál is működik
-                        val eventTime = System.currentTimeMillis()
-                        val downEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_DOWN,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                        )
-                        val upEvent = KeyEvent(
-                            eventTime,
-                            eventTime,
-                            KeyEvent.ACTION_UP,
-                            KeyEvent.KEYCODE_TAB,
-                            0,
-                            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-                        )
-                        connection.sendKeyEvent(downEvent)
-                        connection.sendKeyEvent(upEvent)
-                        showToast("Shift+Tab elküldve")
-                    } catch (e: Exception) {
-                        showToast("Retreat hiba: ${e.message}")
-                        e.printStackTrace()
-                    }
-                }, 50) // 50ms késleltetés (csökkentve 100-ról)
+                try {
+                    // KÖZVETLENÜL küldés, Handler NÉLKÜL!
+                    // Shift+Tab kombináció küldése AZONNAL
+                    val eventTime = System.currentTimeMillis()
+                    val downEvent = KeyEvent(
+                        eventTime,
+                        eventTime,
+                        KeyEvent.ACTION_DOWN,
+                        KeyEvent.KEYCODE_TAB,
+                        0,
+                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                    )
+                    val upEvent = KeyEvent(
+                        eventTime,
+                        eventTime,
+                        KeyEvent.ACTION_UP,
+                        KeyEvent.KEYCODE_TAB,
+                        0,
+                        KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                    )
+                    ic.sendKeyEvent(downEvent)
+                    ic.sendKeyEvent(upEvent)
+                    showToast("Shift+Tab ELKÜLDVE!")
+                } catch (e: Exception) {
+                    showToast("Retreat Hiba: ${e.message}")
+                    e.printStackTrace()
+                }
             } else {
                 showToast("Retreat: Nem OTP mező")
             }
