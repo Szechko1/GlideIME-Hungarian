@@ -571,9 +571,6 @@ class GlideIMEService : InputMethodService() {
 
                     ic?.commitText(character, 1)
 
-                    // DEBUG: Ellenőrizzük hogy egyáltalán idáig eljutunk-e
-                    showToast("Beírva: $character")
-
                     // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
                     checkAndAdvanceToNextField(ic, editorInfo)
 
@@ -867,19 +864,9 @@ class GlideIMEService : InputMethodService() {
 
     // OTP mezők automatikus továbbítása (egyszeri jelszó beviteli mezők)
     private fun checkAndAdvanceToNextField(ic: InputConnection?, info: EditorInfo?) {
-        // DEBUG: függvény meghívva
-        showToast("checkAndAdvance HÍVVA")
-
         try {
-            if (ic == null) {
-                showToast("inputConnection NULL!")
-                return
-            }
-
-            if (info == null) {
-                showToast("editorInfo NULL!")
-                return
-            }
+            if (ic == null) return
+            if (info == null) return
 
             val inputType = info.inputType
             val imeOptions = info.imeOptions
@@ -888,23 +875,14 @@ class GlideIMEService : InputMethodService() {
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
             val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
 
+            if (!isNumberType && !isTextType) return
+
             // KIZÁRÁSOK: böngésző keresőmező és címsor
             val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
             val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
 
-            // DEBUG: mutassuk meg a mező típusát
-            showToast("Típus: NUM=$isNumberType TEXT=$isTextType SEARCH=$isSearchField")
-
-            if (!isNumberType && !isTextType) {
-                showToast("Nem NUM/TEXT - kilép")
-                return
-            }
-
             // Böngésző keresőmezőben és címsorban NEM ugrunk
-            if (isSearchField || isGoField) {
-                showToast("Keresőmező/címsor - kilép")
-                return
-            }
+            if (isSearchField || isGoField) return
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
             // de a getTextBeforeCursor() még NEM látja az új karaktert!
@@ -917,20 +895,14 @@ class GlideIMEService : InputMethodService() {
                     val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
                     val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
-                    // DEBUG: mutassuk meg a szöveg hosszát
-                    showToast("Hossz: $currentTextLength")
-
                     // Ha pontosan 1 karakter van (OTP jellemző), akkor navigálunk
                     if (currentTextLength == 1) {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-
-                        showToast("Nav: hasNext=$hasNextAction")
 
                         // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
                             // Natív Android mezők: IME_ACTION_NEXT
                             ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                            showToast("IME_ACTION_NEXT küldve")
                         } else {
                             // Webes formok: Tab KeyEvent küldése
                             val eventTime = System.currentTimeMillis()
@@ -952,30 +924,21 @@ class GlideIMEService : InputMethodService() {
                             )
                             ic.sendKeyEvent(tabDownEvent)
                             ic.sendKeyEvent(tabUpEvent)
-                            showToast("Tab küldve")
                         }
-                    } else {
-                        showToast("Nem 1 kar - nem nav")
                     }
                 } catch (e: Exception) {
-                    showToast("Hiba Handler: ${e.message}")
                     e.printStackTrace()
                 }
             }, 200) // 200ms késleltetés - biztos, hogy commitText befejeződött
         } catch (e: Exception) {
-            showToast("Hiba check: ${e.message}")
             e.printStackTrace()
         }
     }
 
     // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
     private fun checkAndRetreatToPreviousField() {
-        android.widget.Toast.makeText(this, "RETREAT: DPAD_LEFT", android.widget.Toast.LENGTH_LONG).show()
-
-        // Próbáljuk DPAD_LEFT-et (mint ahogy DPAD_RIGHT működik előre ugráshoz)
+        // DPAD_LEFT küldése - visszalépés az előző OTP mezőre
         sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_LEFT)
-
-        android.widget.Toast.makeText(this, "DPAD_LEFT SENT", android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun showToast(message: String) {
