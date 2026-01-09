@@ -970,33 +970,12 @@ class GlideIMEService : InputMethodService() {
 
     // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
     private fun checkAndRetreatToPreviousField() {
-        android.widget.Toast.makeText(this, "RETREAT START", android.widget.Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(this, "RETREAT: DPAD_LEFT", android.widget.Toast.LENGTH_LONG).show()
 
-        val ic = currentInputConnection
-        if (ic == null) return
+        // Próbáljuk DPAD_LEFT-et (mint ahogy DPAD_RIGHT működik előre ugráshoz)
+        sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_LEFT)
 
-        // Shift+Tab küldése (visszalépés az előző mezőre)
-        val eventTime = System.currentTimeMillis()
-        val downEvent = KeyEvent(
-            eventTime,
-            eventTime,
-            KeyEvent.ACTION_DOWN,
-            KeyEvent.KEYCODE_TAB,
-            0,
-            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-        )
-        val upEvent = KeyEvent(
-            eventTime,
-            eventTime,
-            KeyEvent.ACTION_UP,
-            KeyEvent.KEYCODE_TAB,
-            0,
-            KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-        )
-        ic.sendKeyEvent(downEvent)
-        ic.sendKeyEvent(upEvent)
-
-        android.widget.Toast.makeText(this, "SHIFT+TAB SENT", android.widget.Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(this, "DPAD_LEFT SENT", android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun showToast(message: String) {
