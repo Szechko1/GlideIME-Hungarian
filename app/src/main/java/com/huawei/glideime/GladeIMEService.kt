@@ -997,19 +997,31 @@ class GlideIMEService : InputMethodService() {
 
             showToast("isLikelyOTP=$isLikelyOTPField")
 
-            // Ha OTP-szerű mező és üres, megpróbálunk visszalépni
-            if (isLikelyOTPField) {
-                // LONG Toast hogy biztosan látszódjon
-                android.widget.Toast.makeText(this, "IF BELSEJE!", android.widget.Toast.LENGTH_LONG).show()
+            // NINCS IF - mindig fut (teszteléshez)
+            android.widget.Toast.makeText(this, "KÜLDÖM SHIFT+TAB!", android.widget.Toast.LENGTH_LONG).show()
 
-                // Próba: egyszerű Tab (nem Shift+Tab)
-                ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB))
-                ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_TAB))
+            // Shift+Tab küldése
+            val eventTime = System.currentTimeMillis()
+            val downEvent = KeyEvent(
+                eventTime,
+                eventTime,
+                KeyEvent.ACTION_DOWN,
+                KeyEvent.KEYCODE_TAB,
+                0,
+                KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+            )
+            val upEvent = KeyEvent(
+                eventTime,
+                eventTime,
+                KeyEvent.ACTION_UP,
+                KeyEvent.KEYCODE_TAB,
+                0,
+                KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+            )
+            ic.sendKeyEvent(downEvent)
+            ic.sendKeyEvent(upEvent)
 
-                android.widget.Toast.makeText(this, "TAB KÜLDVE!", android.widget.Toast.LENGTH_LONG).show()
-            } else {
-                showToast("Retreat: Nem OTP mező")
-            }
+            android.widget.Toast.makeText(this, "SHIFT+TAB ELKÜLDVE!", android.widget.Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             showToast("Retreat catch: ${e.message}")
             e.printStackTrace()
