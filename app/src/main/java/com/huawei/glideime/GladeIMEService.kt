@@ -970,62 +970,17 @@ class GlideIMEService : InputMethodService() {
 
     // OTP mezők automatikus visszalépés az előző mezőre (Backspace üres mezőben)
     private fun checkAndRetreatToPreviousField() {
-        showToast("checkAndRetreat HÍVVA")
+        // MINIMÁLIS verzió - csak ez
+        android.widget.Toast.makeText(this, "RETREAT START", android.widget.Toast.LENGTH_LONG).show()
 
-        try {
-            val ic = currentInputConnection
-            if (ic == null) {
-                showToast("Retreat: IC NULL")
-                return
-            }
+        val ic = currentInputConnection
+        if (ic == null) return
 
-            val info = currentInputEditorInfo
-            if (info == null) {
-                showToast("Retreat: EditorInfo NULL")
-                return
-            }
+        // Shift+Tab küldése AZONNAL
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_TAB))
 
-            val inputType = info.inputType
-
-            // Heurisztika: OTP mezők jellemzői
-            val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
-            val isTextType = (inputType and EditorInfo.TYPE_CLASS_TEXT) != 0
-
-            showToast("Retreat: NUM=$isNumberType TEXT=$isTextType")
-
-            val isLikelyOTPField = isNumberType || isTextType
-
-            showToast("isLikelyOTP=$isLikelyOTPField")
-
-            // NINCS IF - mindig fut (teszteléshez)
-            android.widget.Toast.makeText(this, "KÜLDÖM SHIFT+TAB!", android.widget.Toast.LENGTH_LONG).show()
-
-            // Shift+Tab küldése
-            val eventTime = System.currentTimeMillis()
-            val downEvent = KeyEvent(
-                eventTime,
-                eventTime,
-                KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_TAB,
-                0,
-                KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-            )
-            val upEvent = KeyEvent(
-                eventTime,
-                eventTime,
-                KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_TAB,
-                0,
-                KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-            )
-            ic.sendKeyEvent(downEvent)
-            ic.sendKeyEvent(upEvent)
-
-            android.widget.Toast.makeText(this, "SHIFT+TAB ELKÜLDVE!", android.widget.Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            showToast("Retreat catch: ${e.message}")
-            e.printStackTrace()
-        }
+        android.widget.Toast.makeText(this, "TAB SENT", android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun showToast(message: String) {
