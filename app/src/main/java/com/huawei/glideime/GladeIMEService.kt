@@ -18,15 +18,15 @@ class GlideIMEService : InputMethodService() {
     private var isAlternativeLayout = false // Két billentyűzet közötti váltás
     private var currentPackageName: String? = null // Aktuális alkalmazás package neve
 
-    // Duplikátum védelem OnlyOffice számára
+    // Duplikátum védelem OnlyOffice számára (CSAK közvetlen duplikátumokhoz)
     private var lastKeyCode: Int = -1
     private var lastKeyTime: Long = 0
-    private val KEY_DEBOUNCE_MS = 100L // 100ms időablak duplikátum szűréshez
+    private val KEY_DEBOUNCE_MS = 50L // 50ms időablak - csak közvetlen duplikátumok
 
-    // Character-level deduplikáció (OnlyOffice specifikus)
+    // Character-level deduplikáció (OnlyOffice specifikus, CSAK közvetlen duplikátumokhoz)
     private var lastCommittedChar: String = ""
     private var lastCommitTime: Long = 0
-    private val COMMIT_DEBOUNCE_MS = 150L // 150ms időablak ugyanazon karakter újra beírásához
+    private val COMMIT_DEBOUNCE_MS = 50L // 50ms időablak - engedi a gyors gépelést
 
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
@@ -211,6 +211,17 @@ class GlideIMEService : InputMethodService() {
     private fun isOnlyOffice(): Boolean {
         val packageName = currentPackageName?.lowercase() ?: return false
         return packageName.contains("onlyoffice")
+    }
+
+    // Detektálja, hogy böngészőben vagyunk-e
+    private fun isBrowser(): Boolean {
+        val packageName = currentPackageName?.lowercase() ?: return false
+        return packageName.contains("chrome") ||
+               packageName.contains("firefox") ||
+               packageName.contains("browser") ||
+               packageName.contains("opera") ||
+               packageName.contains("edge") ||
+               packageName.contains("samsung") // Samsung Internet
     }
 
     // Ellenőrzi, hogy a billentyű karakter-e (nem módosító vagy speciális)
@@ -959,6 +970,10 @@ class GlideIMEService : InputMethodService() {
             // KIZÁRÁS: Táblázatkezelő alkalmazásokban NEM ugrunk automatikusan
             // (OnlyOffice, Excel, WPS Office, Google Sheets, stb.)
             if (isSpreadsheetApplication()) return
+
+            // KIZÁRÁS: Böngészőben (online táblázatkezelők) NEM ugrunk automatikusan
+            // (Google Sheets, Excel Online, stb. böngészőben)
+            if (isBrowser()) return
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
             // de a getTextBeforeCursor() még NEM látja az új karaktert!
