@@ -18,17 +18,17 @@ class GlideIMEService : InputMethodService() {
     private var isAlternativeLayout = false // Két billentyűzet közötti váltás
     private var currentPackageName: String? = null // Aktuális alkalmazás package neve
 
-    // Duplikátum védelem OnlyOffice számára - RADIKÁLIS MEGKÖZELÍTÉS
+    // Duplikátum védelem - KIKAPCSOLVA OnlyOffice esetén
     private var lastKeyCode: Int = -1
     private var lastKeyTime: Long = 0
-    private val KEY_DEBOUNCE_MS = 80L // 80ms
+    private val KEY_DEBOUNCE_MS = 80L
 
-    // Character-level deduplikáció (OnlyOffice specifikus) - RADIKÁLIS MEGKÖZELÍTÉS
+    // Character-level deduplikáció - KIKAPCSOLVA OnlyOffice esetén
     private var lastCommittedChar: String = ""
     private var lastCommitTime: Long = 0
-    private val COMMIT_DEBOUNCE_MS = 500L // 500ms - RADIKÁLIS, de hatásos
+    private val COMMIT_DEBOUNCE_MS = 100L
 
-    // OnlyOffice karakterek története
+    // Karakterek története - KIKAPCSOLVA OnlyOffice esetén
     private val recentCharsInOnlyOffice = mutableListOf<Pair<String, Long>>()
 
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
@@ -241,9 +241,10 @@ class GlideIMEService : InputMethodService() {
             return true // Eldobjuk az ismétlést
         }
 
-        // VÉDELEM #2: Timestamp alapú duplikátum szűrés (OnlyOffice dupla bevitel fix)
-        // CSAK OnlyOffice-ban alkalmazzuk ezt a védelmet
-        if (isOnlyOffice() && isCharacterKey(keyCode)) {
+        // VÉDELEM #2: Timestamp alapú duplikátum szűrés
+        // KIKAPCSOLVA OnlyOffice esetén - nem segített
+        // CSAK más alkalmazásokban alkalmazzuk
+        if (!isOnlyOffice() && isCharacterKey(keyCode)) {
             val currentTime = System.currentTimeMillis()
             if (keyCode == lastKeyCode && (currentTime - lastKeyTime) < KEY_DEBOUNCE_MS) {
                 // Duplikátum detektálva - eldobjuk
@@ -638,32 +639,16 @@ class GlideIMEService : InputMethodService() {
                 }
 
                 if (character.isNotEmpty()) {
-                    // VÉDELEM #3: Character-level deduplikáció (OnlyOffice specifikus)
-                    // CSAK OnlyOffice-ban alkalmazzuk ezt a védelmet
-                    if (isOnlyOffice()) {
+                    // VÉDELEM #3 és #4: Character-level deduplikáció
+                    // KIKAPCSOLVA OnlyOffice esetén - nem segített
+                    // CSAK más alkalmazásokban alkalmazzuk
+                    if (!isOnlyOffice()) {
                         val currentTime = System.currentTimeMillis()
 
-                        // Ellenőrzés 1: Ugyanaz a karakter 30ms-en belül?
+                        // Ellenőrzés 1: Ugyanaz a karakter 100ms-en belül?
                         if (character == lastCommittedChar && (currentTime - lastCommitTime) < COMMIT_DEBOUNCE_MS) {
                             // Duplikált karakter beírás detektálva - eldobjuk
                             return true
-                        }
-
-                        // VÉDELEM #4: Történet alapú deduplikáció - RADIKÁLIS
-                        // Ellenőrizzük az utolsó karaktert - ha ugyanaz 500ms-en belül ismét jön, gyanús
-                        if (recentCharsInOnlyOffice.isNotEmpty()) {
-                            val lastInHistory = recentCharsInOnlyOffice.last()
-                            if (lastInHistory.first == character && (currentTime - lastInHistory.second) < 500) {
-                                // Duplikátum detektálva - NEM adjuk hozzá a történethez, eldobjuk
-                                return true
-                            }
-                        }
-
-                        // Hozzáadjuk a karaktert a történethez
-                        recentCharsInOnlyOffice.add(Pair(character, currentTime))
-                        // Csak az utolsó 5 karaktert tartjuk meg
-                        while (recentCharsInOnlyOffice.size > 5) {
-                            recentCharsInOnlyOffice.removeAt(0)
                         }
 
                         // Frissítjük az utolsó beírt karaktert és időbélyegét
