@@ -16,6 +16,7 @@ class GlideIMEService : InputMethodService() {
     private var capsLockOn = false
     private var currentEditorInfo: EditorInfo? = null
     private var isAlternativeLayout = false // Két billentyűzet közötti váltás
+    private var currentPackageName: String? = null // Aktuális alkalmazás package neve
 
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
@@ -167,6 +168,12 @@ class GlideIMEService : InputMethodService() {
         return if (isAlternativeLayout) keyboardMapAlternative else keyboardMapOriginal
     }
 
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+        // Mentsd el az alkalmazás package nevét
+        currentPackageName = attribute?.packageName
+    }
+
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentEditorInfo = info
@@ -177,8 +184,32 @@ class GlideIMEService : InputMethodService() {
         // Ne reseteljük az isAlternativeLayout-ot, hogy megmaradjon a választott kiosztás
     }
 
+    // Detektálja, hogy táblázatkezelő alkalmazásban vagyunk-e
+    private fun isSpreadsheetApplication(): Boolean {
+        val packageName = currentPackageName?.lowercase() ?: return false
+
+        // Táblázatkezelő alkalmazások listája
+        return packageName.contains("onlyoffice") ||
+               packageName.contains("wps") ||
+               packageName.contains("excel") ||
+               packageName.contains("sheets") ||  // Google Sheets
+               packageName.contains("calc") ||    // LibreOffice Calc
+               packageName.contains("spreadsheet")
+    }
+
+    // Ellenőrzi, hogy a billentyű karakter-e (nem módosító vagy speciális)
+    private fun isCharacterKey(keyCode: Int): Boolean {
+        return getCurrentKeyboardMap().containsKey(keyCode)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (event == null) return super.onKeyDown(keyCode, event)
+
+        // VÉDELEM: Ismétlődő billentyű események eldobása (OnlyOffice dupla bevitel fix)
+        // Ha ez egy automatikus ismétlés (repeatCount > 0), NE dolgozzuk fel a karaktereket
+        if (event.repeatCount > 0 && isCharacterKey(keyCode)) {
+            return true // Eldobjuk az ismétlést
+        }
 
         try {
             // ==================== MÓDOSÍTÓ BILLENTYŰK ====================
@@ -883,6 +914,10 @@ class GlideIMEService : InputMethodService() {
 
             // Böngésző keresőmezőben és címsorban NEM ugrunk
             if (isSearchField || isGoField) return
+
+            // KIZÁRÁS: Táblázatkezelő alkalmazásokban NEM ugrunk automatikusan
+            // (OnlyOffice, Excel, WPS Office, Google Sheets, stb.)
+            if (isSpreadsheetApplication()) return
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
             // de a getTextBeforeCursor() még NEM látja az új karaktert!
