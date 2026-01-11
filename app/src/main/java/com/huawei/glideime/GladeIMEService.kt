@@ -18,17 +18,17 @@ class GlideIMEService : InputMethodService() {
     private var isAlternativeLayout = false // Két billentyűzet közötti váltás
     private var currentPackageName: String? = null // Aktuális alkalmazás package neve
 
-    // Duplikátum védelem OnlyOffice számára
+    // Duplikátum védelem OnlyOffice számára - RADIKÁLIS MEGKÖZELÍTÉS
     private var lastKeyCode: Int = -1
     private var lastKeyTime: Long = 0
-    private val KEY_DEBOUNCE_MS = 80L // 80ms - OnlyOffice késleltetett duplikátumok
+    private val KEY_DEBOUNCE_MS = 80L // 80ms
 
-    // Character-level deduplikáció (OnlyOffice specifikus)
+    // Character-level deduplikáció (OnlyOffice specifikus) - RADIKÁLIS MEGKÖZELÍTÉS
     private var lastCommittedChar: String = ""
     private var lastCommitTime: Long = 0
-    private val COMMIT_DEBOUNCE_MS = 80L // 80ms - OnlyOffice késleltetett duplikátumok
+    private val COMMIT_DEBOUNCE_MS = 500L // 500ms - RADIKÁLIS, de hatásos
 
-    // OnlyOffice karakterek története (utolsó 5 karakter)
+    // OnlyOffice karakterek története
     private val recentCharsInOnlyOffice = mutableListOf<Pair<String, Long>>()
 
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
@@ -649,11 +649,11 @@ class GlideIMEService : InputMethodService() {
                             return true
                         }
 
-                        // VÉDELEM #4: Történet alapú deduplikáció
-                        // Ellenőrizzük az utolsó karaktert - ha ugyanaz 200ms-en belül ismét jön, gyanús
+                        // VÉDELEM #4: Történet alapú deduplikáció - RADIKÁLIS
+                        // Ellenőrizzük az utolsó karaktert - ha ugyanaz 500ms-en belül ismét jön, gyanús
                         if (recentCharsInOnlyOffice.isNotEmpty()) {
                             val lastInHistory = recentCharsInOnlyOffice.last()
-                            if (lastInHistory.first == character && (currentTime - lastInHistory.second) < 200) {
+                            if (lastInHistory.first == character && (currentTime - lastInHistory.second) < 500) {
                                 // Duplikátum detektálva - NEM adjuk hozzá a történethez, eldobjuk
                                 return true
                             }
