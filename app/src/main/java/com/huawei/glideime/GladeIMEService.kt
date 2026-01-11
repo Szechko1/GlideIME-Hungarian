@@ -18,15 +18,18 @@ class GlideIMEService : InputMethodService() {
     private var isAlternativeLayout = false // Két billentyűzet közötti váltás
     private var currentPackageName: String? = null // Aktuális alkalmazás package neve
 
-    // Duplikátum védelem OnlyOffice számára (CSAK közvetlen duplikátumokhoz)
+    // Duplikátum védelem OnlyOffice számára
     private var lastKeyCode: Int = -1
     private var lastKeyTime: Long = 0
-    private val KEY_DEBOUNCE_MS = 50L // 50ms időablak - csak közvetlen duplikátumok
+    private val KEY_DEBOUNCE_MS = 30L // 30ms - CSAK azonnal ismétlődő események
 
-    // Character-level deduplikáció (OnlyOffice specifikus, CSAK közvetlen duplikátumokhoz)
+    // Character-level deduplikáció (OnlyOffice specifikus)
     private var lastCommittedChar: String = ""
     private var lastCommitTime: Long = 0
-    private val COMMIT_DEBOUNCE_MS = 50L // 50ms időablak - engedi a gyors gépelést
+    private val COMMIT_DEBOUNCE_MS = 30L // 30ms - CSAK azonnal ismétlődő események
+
+    // OnlyOffice karakterek története (utolsó 3 karakter)
+    private val recentCharsInOnlyOffice = mutableListOf<Pair<String, Long>>()
 
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
@@ -639,10 +642,30 @@ class GlideIMEService : InputMethodService() {
                     // CSAK OnlyOffice-ban alkalmazzuk ezt a védelmet
                     if (isOnlyOffice()) {
                         val currentTime = System.currentTimeMillis()
+
+                        // Ellenőrzés 1: Ugyanaz a karakter 30ms-en belül?
                         if (character == lastCommittedChar && (currentTime - lastCommitTime) < COMMIT_DEBOUNCE_MS) {
                             // Duplikált karakter beírás detektálva - eldobjuk
                             return true
                         }
+
+                        // VÉDELEM #4: Történet alapú deduplikáció
+                        // Ellenőrizzük az utolsó karaktert - ha ugyanaz 100ms-en belül ismét jön, gyanús
+                        if (recentCharsInOnlyOffice.isNotEmpty()) {
+                            val lastInHistory = recentCharsInOnlyOffice.last()
+                            if (lastInHistory.first == character && (currentTime - lastInHistory.second) < 100) {
+                                // Duplikátum detektálva - NEM adjuk hozzá a történethez, eldobjuk
+                                return true
+                            }
+                        }
+
+                        // Hozzáadjuk a karaktert a történethez
+                        recentCharsInOnlyOffice.add(Pair(character, currentTime))
+                        // Csak az utolsó 3 karaktert tartjuk meg
+                        while (recentCharsInOnlyOffice.size > 3) {
+                            recentCharsInOnlyOffice.removeAt(0)
+                        }
+
                         // Frissítjük az utolsó beírt karaktert és időbélyegét
                         lastCommittedChar = character
                         lastCommitTime = currentTime
