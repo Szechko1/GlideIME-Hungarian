@@ -18,6 +18,11 @@ class GlideIMEService : InputMethodService() {
     private var isAlternativeLayout = false // Két billentyűzet közötti váltás
     private var currentPackageName: String? = null // Aktuális alkalmazás package neve
 
+    // Duplikátum védelem OnlyOffice számára
+    private var lastKeyCode: Int = -1
+    private var lastKeyTime: Long = 0
+    private val KEY_DEBOUNCE_MS = 100L // 100ms időablak duplikátum szűréshez
+
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
     private val keyboardMapOriginal = mapOf(
@@ -197,6 +202,12 @@ class GlideIMEService : InputMethodService() {
                packageName.contains("spreadsheet")
     }
 
+    // Detektálja, hogy OnlyOffice alkalmazásban vagyunk-e
+    private fun isOnlyOffice(): Boolean {
+        val packageName = currentPackageName?.lowercase() ?: return false
+        return packageName.contains("onlyoffice")
+    }
+
     // Ellenőrzi, hogy a billentyű karakter-e (nem módosító vagy speciális)
     private fun isCharacterKey(keyCode: Int): Boolean {
         return getCurrentKeyboardMap().containsKey(keyCode)
@@ -205,10 +216,23 @@ class GlideIMEService : InputMethodService() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (event == null) return super.onKeyDown(keyCode, event)
 
-        // VÉDELEM: Ismétlődő billentyű események eldobása (OnlyOffice dupla bevitel fix)
+        // VÉDELEM #1: Ismétlődő billentyű események eldobása (OnlyOffice dupla bevitel fix)
         // Ha ez egy automatikus ismétlés (repeatCount > 0), NE dolgozzuk fel a karaktereket
         if (event.repeatCount > 0 && isCharacterKey(keyCode)) {
             return true // Eldobjuk az ismétlést
+        }
+
+        // VÉDELEM #2: Timestamp alapú duplikátum szűrés (OnlyOffice dupla bevitel fix)
+        // Ha ugyanaz a billentyű túl gyorsan (100ms-en belül) újra leütésre kerül, eldobjuk
+        if (isCharacterKey(keyCode)) {
+            val currentTime = System.currentTimeMillis()
+            if (keyCode == lastKeyCode && (currentTime - lastKeyTime) < KEY_DEBOUNCE_MS) {
+                // Duplikátum detektálva - eldobjuk
+                return true
+            }
+            // Frissítjük az utolsó billentyű időbélyegét
+            lastKeyCode = keyCode
+            lastKeyTime = currentTime
         }
 
         try {
