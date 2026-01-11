@@ -478,9 +478,28 @@ class GlideIMEService : InputMethodService() {
             if (keyCode == KeyEvent.KEYCODE_DEL) {
                 val ic = currentInputConnection
                 if (ic != null) {
+                    val info = currentInputEditorInfo
+
                     // TÁBLÁZATKEZELŐK: Használjunk KeyEvent-et, ne InputConnection metódusokat
                     // Az Excel/WPS nem dolgozza fel jól a deleteSurroundingText-et
-                    if (isSpreadsheetApplication()) {
+                    val isSpreadsheetCell = if (isSpreadsheetApplication()) {
+                        // Telepített táblázatkezelő
+                        true
+                    } else if (isBrowser() && info != null) {
+                        // Böngészős táblázatkezelő detektálása inputType alapján
+                        val inputType = info.inputType
+                        val isNumberField = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+                        val isPasswordVariation = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
+                                                  (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
+                                                  (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+                        // Ha NEM number és NEM password, akkor táblázatkezelő cella
+                        !isNumberField && !isPasswordVariation
+                    } else {
+                        false
+                    }
+
+                    if (isSpreadsheetCell) {
+                        // Táblázatkezelő cella: KeyEvent küldése
                         sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
                         return true
                     }
@@ -503,7 +522,6 @@ class GlideIMEService : InputMethodService() {
                         (textAfter == null || textAfter.isEmpty())) {
 
                         // OTP megkülönböztetés (böngészőben)
-                        val info = currentInputEditorInfo
                         val shouldRetreat = if (isBrowser() && info != null) {
                             // Böngészőben: CSAK OTP mezőknél lépünk vissza
                             val inputType = info.inputType
