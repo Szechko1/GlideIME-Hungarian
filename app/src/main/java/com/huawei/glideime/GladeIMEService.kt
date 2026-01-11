@@ -490,10 +490,31 @@ class GlideIMEService : InputMethodService() {
                     val textBefore = ic.getTextBeforeCursor(1, 0)
                     val textAfter = ic.getTextAfterCursor(1, 0)
 
-                    // Ha a mező üres, visszalépünk az előző mezőre
+                    // Ha a mező üres, eldöntjük hogy visszalépünk-e
                     if ((textBefore == null || textBefore.isEmpty()) &&
                         (textAfter == null || textAfter.isEmpty())) {
-                        checkAndRetreatToPreviousField()
+
+                        // BÖNGÉSZŐS TÁBLÁZATKEZELŐ vs OTP megkülönböztetés
+                        val info = currentInputEditorInfo
+                        val shouldRetreat = if (isBrowser() && info != null) {
+                            val inputType = info.inputType
+                            val isNumberField = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+                            val isPasswordVariation = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
+                                                      (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
+                                                      (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+
+                            // CSAK OTP mezőknél (number vagy password) lépünk vissza
+                            // Táblázatkezelő celláknál (text vagy null) NEM lépünk vissza
+                            isNumberField || isPasswordVariation
+                        } else {
+                            // Nem böngészőben: normál viselkedés (visszalépés)
+                            true
+                        }
+
+                        if (shouldRetreat) {
+                            checkAndRetreatToPreviousField()
+                        }
+                        // Ha nem lépünk vissza, egyszerűen nem csinálunk semmit (üres marad)
                     } else {
                         // Normál törlés - egy karakter
                         ic.deleteSurroundingText(1, 0)
