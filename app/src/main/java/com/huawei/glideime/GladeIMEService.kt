@@ -239,8 +239,8 @@ class GlideIMEService : InputMethodService() {
         }
 
         // VÉDELEM #2: Timestamp alapú duplikátum szűrés (OnlyOffice dupla bevitel fix)
-        // Ha ugyanaz a billentyű túl gyorsan (100ms-en belül) újra leütésre kerül, eldobjuk
-        if (isCharacterKey(keyCode)) {
+        // CSAK OnlyOffice-ban alkalmazzuk ezt a védelmet
+        if (isOnlyOffice() && isCharacterKey(keyCode)) {
             val currentTime = System.currentTimeMillis()
             if (keyCode == lastKeyCode && (currentTime - lastKeyTime) < KEY_DEBOUNCE_MS) {
                 // Duplikátum detektálva - eldobjuk
@@ -636,11 +636,16 @@ class GlideIMEService : InputMethodService() {
 
                 if (character.isNotEmpty()) {
                     // VÉDELEM #3: Character-level deduplikáció (OnlyOffice specifikus)
-                    // Ha ugyanaz a karakter próbál beíródni túl gyorsan (150ms-en belül), eldobjuk
-                    val currentTime = System.currentTimeMillis()
-                    if (character == lastCommittedChar && (currentTime - lastCommitTime) < COMMIT_DEBOUNCE_MS) {
-                        // Duplikált karakter beírás detektálva - eldobjuk
-                        return true
+                    // CSAK OnlyOffice-ban alkalmazzuk ezt a védelmet
+                    if (isOnlyOffice()) {
+                        val currentTime = System.currentTimeMillis()
+                        if (character == lastCommittedChar && (currentTime - lastCommitTime) < COMMIT_DEBOUNCE_MS) {
+                            // Duplikált karakter beírás detektálva - eldobjuk
+                            return true
+                        }
+                        // Frissítjük az utolsó beírt karaktert és időbélyegét
+                        lastCommittedChar = character
+                        lastCommitTime = currentTime
                     }
 
                     // KRITIKUS: Mentsük el az EditorInfo-t MIELŐTT commitText-et hívunk!
@@ -649,10 +654,6 @@ class GlideIMEService : InputMethodService() {
                     val editorInfo = currentInputEditorInfo  // InputMethodService beépített property
 
                     ic?.commitText(character, 1)
-
-                    // Frissítjük az utolsó beírt karaktert és időbélyegét
-                    lastCommittedChar = character
-                    lastCommitTime = currentTime
 
                     // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
                     checkAndAdvanceToNextField(ic, editorInfo)
@@ -973,7 +974,9 @@ class GlideIMEService : InputMethodService() {
 
             // KIZÁRÁS: Böngészőben (online táblázatkezelők) NEM ugrunk automatikusan
             // (Google Sheets, Excel Online, stb. böngészőben)
-            if (isBrowser()) return
+            // KIVÉTEL: OTP mezők (egykarakteres mezők) esetén IGEN ugrunk
+            // A késleltetett ellenőrzés során majd látjuk, hogy OTP-e vagy sem
+            // (ha currentTextLength == 1, akkor valószínűleg OTP, akkor ugrunk)
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
             // de a getTextBeforeCursor() még NEM látja az új karaktert!
