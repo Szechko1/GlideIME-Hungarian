@@ -23,6 +23,11 @@ class GlideIMEService : InputMethodService() {
     private var lastKeyTime: Long = 0
     private val KEY_DEBOUNCE_MS = 100L // 100ms időablak duplikátum szűréshez
 
+    // Character-level deduplikáció (OnlyOffice specifikus)
+    private var lastCommittedChar: String = ""
+    private var lastCommitTime: Long = 0
+    private val COMMIT_DEBOUNCE_MS = 150L // 150ms időablak ugyanazon karakter újra beírásához
+
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
     // KeyMapping: Base, Shift, CapsLock, Alt, Shift+Alt
     private val keyboardMapOriginal = mapOf(
@@ -619,12 +624,24 @@ class GlideIMEService : InputMethodService() {
                 }
 
                 if (character.isNotEmpty()) {
+                    // VÉDELEM #3: Character-level deduplikáció (OnlyOffice specifikus)
+                    // Ha ugyanaz a karakter próbál beíródni túl gyorsan (150ms-en belül), eldobjuk
+                    val currentTime = System.currentTimeMillis()
+                    if (character == lastCommittedChar && (currentTime - lastCommitTime) < COMMIT_DEBOUNCE_MS) {
+                        // Duplikált karakter beírás detektálva - eldobjuk
+                        return true
+                    }
+
                     // KRITIKUS: Mentsük el az EditorInfo-t MIELŐTT commitText-et hívunk!
                     // Használjuk a beépített currentInputEditorInfo-t (nem a sajátunkat!)
                     val ic = currentInputConnection
                     val editorInfo = currentInputEditorInfo  // InputMethodService beépített property
 
                     ic?.commitText(character, 1)
+
+                    // Frissítjük az utolsó beírt karaktert és időbélyegét
+                    lastCommittedChar = character
+                    lastCommitTime = currentTime
 
                     // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
                     checkAndAdvanceToNextField(ic, editorInfo)
