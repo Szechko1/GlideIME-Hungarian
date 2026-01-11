@@ -21,14 +21,14 @@ class GlideIMEService : InputMethodService() {
     // Duplikátum védelem OnlyOffice számára
     private var lastKeyCode: Int = -1
     private var lastKeyTime: Long = 0
-    private val KEY_DEBOUNCE_MS = 30L // 30ms - CSAK azonnal ismétlődő események
+    private val KEY_DEBOUNCE_MS = 80L // 80ms - OnlyOffice késleltetett duplikátumok
 
     // Character-level deduplikáció (OnlyOffice specifikus)
     private var lastCommittedChar: String = ""
     private var lastCommitTime: Long = 0
-    private val COMMIT_DEBOUNCE_MS = 30L // 30ms - CSAK azonnal ismétlődő események
+    private val COMMIT_DEBOUNCE_MS = 80L // 80ms - OnlyOffice késleltetett duplikátumok
 
-    // OnlyOffice karakterek története (utolsó 3 karakter)
+    // OnlyOffice karakterek története (utolsó 5 karakter)
     private val recentCharsInOnlyOffice = mutableListOf<Pair<String, Long>>()
 
     // Huawei Glide magyar billentyűzet-kiosztás #1 (Eredeti PDF alapján)
@@ -650,10 +650,10 @@ class GlideIMEService : InputMethodService() {
                         }
 
                         // VÉDELEM #4: Történet alapú deduplikáció
-                        // Ellenőrizzük az utolsó karaktert - ha ugyanaz 100ms-en belül ismét jön, gyanús
+                        // Ellenőrizzük az utolsó karaktert - ha ugyanaz 200ms-en belül ismét jön, gyanús
                         if (recentCharsInOnlyOffice.isNotEmpty()) {
                             val lastInHistory = recentCharsInOnlyOffice.last()
-                            if (lastInHistory.first == character && (currentTime - lastInHistory.second) < 100) {
+                            if (lastInHistory.first == character && (currentTime - lastInHistory.second) < 200) {
                                 // Duplikátum detektálva - NEM adjuk hozzá a történethez, eldobjuk
                                 return true
                             }
@@ -661,8 +661,8 @@ class GlideIMEService : InputMethodService() {
 
                         // Hozzáadjuk a karaktert a történethez
                         recentCharsInOnlyOffice.add(Pair(character, currentTime))
-                        // Csak az utolsó 3 karaktert tartjuk meg
-                        while (recentCharsInOnlyOffice.size > 3) {
+                        // Csak az utolsó 5 karaktert tartjuk meg
+                        while (recentCharsInOnlyOffice.size > 5) {
                             recentCharsInOnlyOffice.removeAt(0)
                         }
 
@@ -995,11 +995,22 @@ class GlideIMEService : InputMethodService() {
             // (OnlyOffice, Excel, WPS Office, Google Sheets, stb.)
             if (isSpreadsheetApplication()) return
 
-            // KIZÁRÁS: Böngészőben (online táblázatkezelők) NEM ugrunk automatikusan
-            // (Google Sheets, Excel Online, stb. böngészőben)
-            // KIVÉTEL: OTP mezők (egykarakteres mezők) esetén IGEN ugrunk
-            // A késleltetett ellenőrzés során majd látjuk, hogy OTP-e vagy sem
-            // (ha currentTextLength == 1, akkor valószínűleg OTP, akkor ugrunk)
+            // KIZÁRÁS: Böngészőben NEM ugrunk automatikusan
+            // KIVÉTEL: OTP mezők - felismerjük az inputType alapján
+            if (isBrowser()) {
+                // OTP mezők általában TYPE_CLASS_NUMBER vagy maxLength=1
+                val isNumberField = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
+                val isPasswordVariation = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
+                                          (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
+                                          (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+
+                // Ha nem number mező és nem password mező, valószínűleg táblázatkezelő
+                // Táblázatkezelők általában TYPE_CLASS_TEXT vagy TYPE_NULL
+                if (!isNumberField && !isPasswordVariation) {
+                    return // Böngészős táblázatkezelő - NEM ugrunk
+                }
+                // Ha number vagy password mező, folytatjuk (lehet OTP)
+            }
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
             // de a getTextBeforeCursor() még NEM látja az új karaktert!
