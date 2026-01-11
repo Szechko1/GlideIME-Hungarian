@@ -1017,6 +1017,13 @@ class GlideIMEService : InputMethodService() {
 
             if (!isNumberType && !isTextType) return
 
+            // KIZÁRÁS: Normál text mezők (nem OTP jelszó mezők) - soha ne ugorjunk
+            // Csak TYPE_CLASS_NUMBER vagy TYPE_CLASS_TEXT + PASSWORD variation mezőknél engedélyezett az auto-advance
+            val isPlainTextField = isTextType &&
+                                  (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) == 0 &&
+                                  (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) == 0
+            if (isPlainTextField) return
+
             // KIZÁRÁSOK: böngésző keresőmező és címsor
             val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
             val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
