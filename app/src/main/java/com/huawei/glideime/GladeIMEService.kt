@@ -1056,8 +1056,14 @@ class GlideIMEService : InputMethodService() {
                     val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
                     val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
-                    // Ha pontosan 1 karakter van (OTP jellemző), akkor navigálunk
-                    if (currentTextLength == 1) {
+                    // SZIGORÍTOTT OTP felismerés: CSAK number vagy password mezőknél
+                    val isOTPField = isNumberType ||
+                                    (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
+                                    (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
+                                    (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+
+                    // Ha pontosan 1 karakter van ÉS ez egy OTP mező, akkor navigálunk
+                    if (currentTextLength == 1 && isOTPField) {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
 
                         // Többféle navigációs módszert próbálunk
