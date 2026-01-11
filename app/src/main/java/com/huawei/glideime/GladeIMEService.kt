@@ -205,6 +205,7 @@ class GlideIMEService : InputMethodService() {
         return packageName.contains("onlyoffice") ||
                packageName.contains("wps") ||
                packageName.contains("excel") ||
+               packageName.contains("office") ||  // Microsoft Office
                packageName.contains("sheets") ||  // Google Sheets
                packageName.contains("calc") ||    // LibreOffice Calc
                packageName.contains("spreadsheet")
@@ -477,6 +478,13 @@ class GlideIMEService : InputMethodService() {
             if (keyCode == KeyEvent.KEYCODE_DEL) {
                 val ic = currentInputConnection
                 if (ic != null) {
+                    // TÁBLÁZATKEZELŐK: Használjunk KeyEvent-et, ne InputConnection metódusokat
+                    // Az Excel/WPS nem dolgozza fel jól a deleteSurroundingText-et
+                    if (isSpreadsheetApplication()) {
+                        sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+                        return true
+                    }
+
                     // Először ellenőrizzük, hogy van-e kijelölt szöveg
                     val selectedText = ic.getSelectedText(0)
 
@@ -494,12 +502,9 @@ class GlideIMEService : InputMethodService() {
                     if ((textBefore == null || textBefore.isEmpty()) &&
                         (textAfter == null || textAfter.isEmpty())) {
 
-                        // TÁBLÁZATKEZELŐ vs OTP megkülönböztetés
+                        // OTP megkülönböztetés (böngészőben)
                         val info = currentInputEditorInfo
-                        val shouldRetreat = if (isSpreadsheetApplication()) {
-                            // Telepített táblázatkezelő (Excel, WPS, OnlyOffice, stb.): NEM lépünk vissza
-                            false
-                        } else if (isBrowser() && info != null) {
+                        val shouldRetreat = if (isBrowser() && info != null) {
                             // Böngészőben: CSAK OTP mezőknél lépünk vissza
                             val inputType = info.inputType
                             val isNumberField = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
