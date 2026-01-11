@@ -494,9 +494,13 @@ class GlideIMEService : InputMethodService() {
                     if ((textBefore == null || textBefore.isEmpty()) &&
                         (textAfter == null || textAfter.isEmpty())) {
 
-                        // BÖNGÉSZŐS TÁBLÁZATKEZELŐ vs OTP megkülönböztetés
+                        // TÁBLÁZATKEZELŐ vs OTP megkülönböztetés
                         val info = currentInputEditorInfo
-                        val shouldRetreat = if (isBrowser() && info != null) {
+                        val shouldRetreat = if (isSpreadsheetApplication()) {
+                            // Telepített táblázatkezelő (Excel, WPS, OnlyOffice, stb.): NEM lépünk vissza
+                            false
+                        } else if (isBrowser() && info != null) {
+                            // Böngészőben: CSAK OTP mezőknél lépünk vissza
                             val inputType = info.inputType
                             val isNumberField = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
                             val isPasswordVariation = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
@@ -507,7 +511,7 @@ class GlideIMEService : InputMethodService() {
                             // Táblázatkezelő celláknál (text vagy null) NEM lépünk vissza
                             isNumberField || isPasswordVariation
                         } else {
-                            // Nem böngészőben: normál viselkedés (visszalépés)
+                            // Minden más alkalmazás: normál viselkedés (visszalépés)
                             true
                         }
 
