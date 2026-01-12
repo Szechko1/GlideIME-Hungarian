@@ -1017,11 +1017,18 @@ class GlideIMEService : InputMethodService() {
 
             if (!isNumberType && !isTextType) return
 
-            // KIZÁRÁS: Normál text mezők (nem OTP jelszó mezők) - soha ne ugorjunk
-            // Csak TYPE_CLASS_NUMBER vagy TYPE_CLASS_TEXT + PASSWORD variation mezőknél engedélyezett az auto-advance
-            val isPlainTextField = isTextType &&
-                                  (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) == 0 &&
-                                  (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) == 0
+            // OTP mező felismerés: password variation VAGY maxLength = 1
+            val isPasswordVariation = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
+                                     (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
+                                     (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+            val maxLength = info.extras?.getInt("android.support.text.emoji.EmojiCompat_maxLength", -1) ?: -1
+            val hasMaxLength1 = maxLength == 1
+
+            val isPotentialOTPField = isNumberType || isPasswordVariation || hasMaxLength1
+
+            // KIZÁRÁS: Normál text mezők (nem OTP) - soha ne ugorjunk
+            // Plain text mező = TYPE_CLASS_TEXT ÉS nem password ÉS nincs maxLength=1
+            val isPlainTextField = isTextType && !isPotentialOTPField
             if (isPlainTextField) return
 
             // KIZÁRÁSOK: böngésző keresőmező és címsor
@@ -1036,20 +1043,20 @@ class GlideIMEService : InputMethodService() {
             if (isSpreadsheetApplication()) return
 
             // KIZÁRÁS: Böngészőben NEM ugrunk automatikusan
-            // KIVÉTEL: OTP mezők - felismerjük az inputType alapján
+            // KIVÉTEL: OTP mezők - CSAK akkor ha password variation vagy maxLength=1
             if (isBrowser()) {
-                // OTP mezők általában TYPE_CLASS_NUMBER vagy maxLength=1
-                val isNumberField = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
-                val isPasswordVariation = (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
-                                          (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
-                                          (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+                // Táblázatkezelő cellák (Excel Online, Google Sheets, OnlyOffice Online):
+                // - TYPE_CLASS_NUMBER vagy TYPE_CLASS_TEXT
+                // - NEM password variation
+                // - NEM maxLength=1
+                // OTP mezők böngészőben:
+                // - PASSWORD variation VAGY maxLength=1 beállítva
 
-                // Ha nem number mező és nem password mező, valószínűleg táblázatkezelő
-                // Táblázatkezelők általában TYPE_CLASS_TEXT vagy TYPE_NULL
-                if (!isNumberField && !isPasswordVariation) {
-                    return // Böngészős táblázatkezelő - NEM ugrunk
+                // Ha NEM OTP jellegű mező (nincs password és nincs maxLength=1), akkor táblázatkezelő
+                if (!isPasswordVariation && !hasMaxLength1) {
+                    return // Böngészős táblázatkezelő vagy normál form mező - NEM ugrunk
                 }
-                // Ha number vagy password mező, folytatjuk (lehet OTP)
+                // Ha password vagy maxLength=1, folytatjuk (valódi OTP mező)
             }
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
@@ -1063,11 +1070,8 @@ class GlideIMEService : InputMethodService() {
                     val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
                     val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
-                    // SZIGORÍTOTT OTP felismerés: CSAK number vagy password mezőknél
-                    val isOTPField = isNumberType ||
-                                    (inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
-                                    (inputType and EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
-                                    (inputType and EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD) != 0
+                    // OTP felismerés: number mező VAGY password variation VAGY maxLength=1
+                    val isOTPField = isPotentialOTPField
 
                     // Ha pontosan 1 karakter van ÉS ez egy OTP mező, akkor navigálunk
                     if (currentTextLength == 1 && isOTPField) {
