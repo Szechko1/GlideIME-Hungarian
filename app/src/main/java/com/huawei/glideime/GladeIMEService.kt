@@ -1032,16 +1032,18 @@ class GlideIMEService : InputMethodService() {
             // (OnlyOffice, Excel, WPS Office, Google Sheets, stb.)
             if (isSpreadsheetApplication()) return
 
-            // KIZÁRÁS: Böngészőben NEM ugrunk automatikusan - KIVÉVE ha natív app OTP
-            // Böngészőben lévő táblázatkezelők és űrlap mezők is TYPE_CLASS_NUMBER lehetnek
-            // Viszont a valódi OTP mezők böngészőben általában IME_ACTION_NEXT-et használnak
+            // KIZÁRÁS: Böngészőben NEM ugrunk automatikusan - KIVÉVE OTP mezők
+            // Böngészőben lévő táblázatkezelők cellái is TYPE_CLASS_NUMBER lehetnek
+            // Az OTP mezők viszont általában IME_ACTION_NEXT vagy IME_ACTION_DONE flaggel rendelkeznek
             if (isBrowser()) {
-                // Ha nincs IME_ACTION_NEXT, valószínűleg táblázatkezelő vagy normál form
                 val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
-                if (!hasNextAction) {
-                    return // Böngésző - NEM OTP mező
+                val hasDoneAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_DONE
+
+                // Ha nincs NEXT vagy DONE, valószínűleg táblázatkezelő
+                if (!hasNextAction && !hasDoneAction) {
+                    return // Böngésző táblázatkezelő - NEM ugrunk
                 }
-                // Ha van IME_ACTION_NEXT, folytatjuk (lehet OTP)
+                // Ha van NEXT vagy DONE, folytatjuk (OTP mező, pl. Ügyfélkapu)
             }
 
             // KRITIKUS: A commitText után AZONNAL hívjuk meg ezt a függvényt,
