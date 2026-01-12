@@ -1059,32 +1059,37 @@ class GlideIMEService : InputMethodService() {
                     // (ide csak number mezők jutnak el a fenti szűrések után)
                     if (currentTextLength == 1) {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
+                        val hasDoneAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_DONE
 
-                        // Többféle navigációs módszert próbálunk
                         if (hasNextAction) {
-                            // Natív Android mezők: IME_ACTION_NEXT
+                            // Van következő mező → lépj tovább
                             ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
+                        } else if (hasDoneAction) {
+                            // Ez az utolsó mező (DONE action) → automatikus submit
+                            // Ez aktiválja a "Tovább" gombot az Ügyfélkapu-ban
+                            ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
                         } else {
-                            // Webes formok: Tab KeyEvent küldése
+                            // Nincs explicit NEXT vagy DONE → próbáljuk Enter-rel
+                            // Ez sok app-ban triggerel submit akciót
                             val eventTime = System.currentTimeMillis()
-                            val tabDownEvent = KeyEvent(
+                            val enterDownEvent = KeyEvent(
                                 eventTime,
                                 eventTime,
                                 KeyEvent.ACTION_DOWN,
-                                KeyEvent.KEYCODE_TAB,
+                                KeyEvent.KEYCODE_ENTER,
                                 0,
                                 0
                             )
-                            val tabUpEvent = KeyEvent(
+                            val enterUpEvent = KeyEvent(
                                 eventTime,
                                 eventTime,
                                 KeyEvent.ACTION_UP,
-                                KeyEvent.KEYCODE_TAB,
+                                KeyEvent.KEYCODE_ENTER,
                                 0,
                                 0
                             )
-                            ic.sendKeyEvent(tabDownEvent)
-                            ic.sendKeyEvent(tabUpEvent)
+                            ic.sendKeyEvent(enterDownEvent)
+                            ic.sendKeyEvent(enterUpEvent)
                         }
                     }
                 } catch (e: Exception) {
