@@ -1062,34 +1062,52 @@ class GlideIMEService : InputMethodService() {
                         val hasDoneAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_DONE
 
                         if (hasNextAction) {
-                            // Van következő mező → lépj tovább
+                            // Van következő mező → lépj tovább (1-5. OTP mező)
                             ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-                        } else if (hasDoneAction) {
-                            // Ez az utolsó mező (DONE action) → automatikus submit
-                            // Ez aktiválja a "Tovább" gombot az Ügyfélkapu-ban
-                            ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
                         } else {
-                            // Nincs explicit NEXT vagy DONE → próbáljuk Enter-rel
-                            // Ez sok app-ban triggerel submit akciót
-                            val eventTime = System.currentTimeMillis()
-                            val enterDownEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_DOWN,
-                                KeyEvent.KEYCODE_ENTER,
-                                0,
-                                0
-                            )
-                            val enterUpEvent = KeyEvent(
-                                eventTime,
-                                eventTime,
-                                KeyEvent.ACTION_UP,
-                                KeyEvent.KEYCODE_ENTER,
-                                0,
-                                0
-                            )
-                            ic.sendKeyEvent(enterDownEvent)
-                            ic.sendKeyEvent(enterUpEvent)
+                            // UTOLSÓ OTP mező (6. szám) → automatikus submit
+                            // Több próbálkozás különböző módszerekkel
+
+                            // 1. DONE action (ha van)
+                            if (hasDoneAction) {
+                                ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
+                            }
+
+                            // 2. Kis késleltetés után még egyszer DONE (biztos, ami biztos)
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                try {
+                                    ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }, 100)
+
+                            // 3. Enter billentyű (fallback, ha a DONE nem működik)
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                try {
+                                    val eventTime = System.currentTimeMillis()
+                                    val enterDownEvent = KeyEvent(
+                                        eventTime,
+                                        eventTime,
+                                        KeyEvent.ACTION_DOWN,
+                                        KeyEvent.KEYCODE_ENTER,
+                                        0,
+                                        0
+                                    )
+                                    val enterUpEvent = KeyEvent(
+                                        eventTime,
+                                        eventTime,
+                                        KeyEvent.ACTION_UP,
+                                        KeyEvent.KEYCODE_ENTER,
+                                        0,
+                                        0
+                                    )
+                                    ic.sendKeyEvent(enterDownEvent)
+                                    ic.sendKeyEvent(enterUpEvent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }, 200)
                         }
                     }
                 } catch (e: Exception) {
