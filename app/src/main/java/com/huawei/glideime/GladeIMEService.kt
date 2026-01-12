@@ -1065,49 +1065,56 @@ class GlideIMEService : InputMethodService() {
                             // Van következő mező → lépj tovább (1-5. OTP mező)
                             ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
                         } else {
-                            // UTOLSÓ OTP mező (6. szám) → automatikus submit
-                            // Több próbálkozás különböző módszerekkel
+                            // UTOLSÓ OTP mező (6. szám) → automatikus submit több módszerrel
 
-                            // 1. DONE action (ha van)
+                            // Réteg 1: DONE action azonnal (ha van)
                             if (hasDoneAction) {
                                 ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
                             }
 
-                            // 2. Kis késleltetés után még egyszer DONE (biztos, ami biztos)
+                            // Réteg 2: DPAD_CENTER (gyakran triggerel submit-et)
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                try {
+                                    sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_CENTER)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }, 150)
+
+                            // Réteg 3: Enter billentyű
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                try {
+                                    sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }, 300)
+
+                            // Réteg 4: DONE action újra (hosszabb késleltetéssel)
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 try {
                                     ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }
-                            }, 100)
+                            }, 450)
 
-                            // 3. Enter billentyű (fallback, ha a DONE nem működik)
+                            // Réteg 5: Tab + Enter kombináció (utolsó próbálkozás)
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 try {
-                                    val eventTime = System.currentTimeMillis()
-                                    val enterDownEvent = KeyEvent(
-                                        eventTime,
-                                        eventTime,
-                                        KeyEvent.ACTION_DOWN,
-                                        KeyEvent.KEYCODE_ENTER,
-                                        0,
-                                        0
-                                    )
-                                    val enterUpEvent = KeyEvent(
-                                        eventTime,
-                                        eventTime,
-                                        KeyEvent.ACTION_UP,
-                                        KeyEvent.KEYCODE_ENTER,
-                                        0,
-                                        0
-                                    )
-                                    ic.sendKeyEvent(enterDownEvent)
-                                    ic.sendKeyEvent(enterUpEvent)
+                                    sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
+                                    // Rövid szünet Tab után
+                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        try {
+                                            sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    }, 50)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }
-                            }, 200)
+                            }, 600)
                         }
                     }
                 } catch (e: Exception) {
