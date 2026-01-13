@@ -243,11 +243,12 @@ class GlideIMEService : InputMethodService() {
         }
 
         // VÉDELEM #2: Timestamp alapú duplikátum szűrés
-        // KIKAPCSOLVA OnlyOffice esetén - nem segített
-        // CSAK más alkalmazásokban alkalmazzuk
-        if (!isOnlyOffice() && isCharacterKey(keyCode)) {
+        // OnlyOffice esetében is alkalmazzuk, de rövidebb idővel
+        if (isCharacterKey(keyCode)) {
             val currentTime = System.currentTimeMillis()
-            if (keyCode == lastKeyCode && (currentTime - lastKeyTime) < KEY_DEBOUNCE_MS) {
+            val debounceTime = if (isOnlyOffice()) 50L else KEY_DEBOUNCE_MS
+
+            if (keyCode == lastKeyCode && (currentTime - lastKeyTime) < debounceTime) {
                 // Duplikátum detektálva - eldobjuk
                 return true
             }
@@ -688,31 +689,43 @@ class GlideIMEService : InputMethodService() {
 
                 if (character.isNotEmpty()) {
                     // VÉDELEM #3 és #4: Character-level deduplikáció
-                    // KIKAPCSOLVA OnlyOffice esetén - nem segített
-                    // CSAK más alkalmazásokban alkalmazzuk
-                    if (!isOnlyOffice()) {
-                        val currentTime = System.currentTimeMillis()
+                    // OnlyOffice esetében is alkalmazzuk, de rövidebb idővel
+                    val currentTime = System.currentTimeMillis()
+                    val debounceTime = if (isOnlyOffice()) 50L else COMMIT_DEBOUNCE_MS
 
-                        // Ellenőrzés 1: Ugyanaz a karakter 100ms-en belül?
-                        if (character == lastCommittedChar && (currentTime - lastCommitTime) < COMMIT_DEBOUNCE_MS) {
-                            // Duplikált karakter beírás detektálva - eldobjuk
-                            return true
-                        }
-
-                        // Frissítjük az utolsó beírt karaktert és időbélyegét
-                        lastCommittedChar = character
-                        lastCommitTime = currentTime
+                    // Ellenőrzés: Ugyanaz a karakter a debounce időn belül?
+                    if (character == lastCommittedChar && (currentTime - lastCommitTime) < debounceTime) {
+                        // Duplikált karakter beírás detektálva - eldobjuk
+                        return true
                     }
+
+                    // Frissítjük az utolsó beírt karaktert és időbélyegét
+                    lastCommittedChar = character
+                    lastCommitTime = currentTime
 
                     // KRITIKUS: Mentsük el az EditorInfo-t MIELŐTT commitText-et hívunk!
                     // Használjuk a beépített currentInputEditorInfo-t (nem a sajátunkat!)
                     val ic = currentInputConnection
                     val editorInfo = currentInputEditorInfo  // InputMethodService beépített property
 
-                    ic?.commitText(character, 1)
-
-                    // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
-                    checkAndAdvanceToNextField(ic, editorInfo)
+                    // OnlyOffice speciális kezelés: aktiváljuk a cellát MIELŐTT írunk
+                    if (isOnlyOffice()) {
+                        // Kis késleltetéssel küldjük a karaktert, hogy a cella aktiválódjon
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            try {
+                                ic?.commitText(character, 1)
+                                // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
+                                checkAndAdvanceToNextField(ic, editorInfo)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }, 50)
+                    } else {
+                        // Normál alkalmazások: azonnal
+                        ic?.commitText(character, 1)
+                        // OTP mezők automatikus továbbítása - átadjuk az elmentett értékeket
+                        checkAndAdvanceToNextField(ic, editorInfo)
+                    }
 
                     return true
                 }
@@ -1011,6 +1024,9 @@ class GlideIMEService : InputMethodService() {
             val inputType = info.inputType
             val imeOptions = info.imeOptions
 
+            // DEBUG: Toast a függvény meghívásáról
+            showToast("OTP check: inputType=${inputType}, imeOptions=${imeOptions}")
+
             // SZIGORÚ SZŰRÉS: CSAK TYPE_CLASS_NUMBER mezőknél engedélyezzük az auto-advance-t
             // Ez biztosítja, hogy:
             // - OTP number input mezők működjenek (TYPE_CLASS_NUMBER)
@@ -1019,18 +1035,27 @@ class GlideIMEService : InputMethodService() {
             val isNumberType = (inputType and EditorInfo.TYPE_CLASS_NUMBER) != 0
 
             // Ha NEM number mező, kilépünk - ez blokkolja az ÖSSZES text alapú mezőt
-            if (!isNumberType) return
+            if (!isNumberType) {
+                showToast("OTP blocked: not number type")
+                return
+            }
 
             // KIZÁRÁSOK: böngésző keresőmező és címsor
             val isSearchField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH
             val isGoField = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO
 
             // Böngésző keresőmezőben és címsorban NEM ugrunk
-            if (isSearchField || isGoField) return
+            if (isSearchField || isGoField) {
+                showToast("OTP blocked: search/go field")
+                return
+            }
 
             // KIZÁRÁS: Táblázatkezelő alkalmazásokban NEM ugrunk automatikusan
             // (OnlyOffice, Excel, WPS Office, Google Sheets, stb.)
-            if (isSpreadsheetApplication()) return
+            if (isSpreadsheetApplication()) {
+                showToast("OTP blocked: spreadsheet")
+                return
+            }
 
             // KIZÁRÁS: Böngészőben NEM ugrunk automatikusan - KIVÉVE OTP mezők
             // Böngészőben lévő táblázatkezelők cellái is TYPE_CLASS_NUMBER lehetnek
@@ -1039,8 +1064,11 @@ class GlideIMEService : InputMethodService() {
                 val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
                 val hasDoneAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_DONE
 
+                showToast("Browser OTP: NEXT=$hasNextAction, DONE=$hasDoneAction")
+
                 // Ha nincs NEXT vagy DONE, valószínűleg táblázatkezelő
                 if (!hasNextAction && !hasDoneAction) {
+                    showToast("OTP blocked: browser spreadsheet")
                     return // Böngésző táblázatkezelő - NEM ugrunk
                 }
                 // Ha van NEXT vagy DONE, folytatjuk (OTP mező, pl. Ügyfélkapu)
@@ -1057,26 +1085,34 @@ class GlideIMEService : InputMethodService() {
                     val textAfterCursor = ic.getTextAfterCursor(100, 0) ?: ""
                     val currentTextLength = textBeforeCursor.length + textAfterCursor.length
 
+                    showToast("OTP length: $currentTextLength")
+
                     // Ha pontosan 1 karakter van, akkor navigálunk
                     // (ide csak number mezők jutnak el a fenti szűrések után)
                     if (currentTextLength == 1) {
                         val hasNextAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_NEXT
                         val hasDoneAction = (imeOptions and EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_DONE
 
+                        showToast("OTP action: NEXT=$hasNextAction, DONE=$hasDoneAction")
+
                         if (hasNextAction) {
                             // Van következő mező → lépj tovább (1-5. OTP mező)
+                            showToast("OTP: Advancing to next field")
                             ic.performEditorAction(EditorInfo.IME_ACTION_NEXT)
                         } else {
                             // UTOLSÓ OTP mező (6. szám) → automatikus submit több módszerrel
+                            showToast("OTP: Last field - AUTO SUBMIT!")
 
                             // Réteg 1: DONE action azonnal (ha van)
                             if (hasDoneAction) {
+                                showToast("Submit Layer 1: DONE action")
                                 ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
                             }
 
                             // Réteg 2: DPAD_CENTER (gyakran triggerel submit-et)
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 try {
+                                    showToast("Submit Layer 2: DPAD_CENTER")
                                     sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_CENTER)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -1086,6 +1122,7 @@ class GlideIMEService : InputMethodService() {
                             // Réteg 3: Enter billentyű
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 try {
+                                    showToast("Submit Layer 3: ENTER")
                                     sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -1095,6 +1132,7 @@ class GlideIMEService : InputMethodService() {
                             // Réteg 4: DONE action újra (hosszabb késleltetéssel)
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 try {
+                                    showToast("Submit Layer 4: DONE again")
                                     ic.performEditorAction(EditorInfo.IME_ACTION_DONE)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -1104,6 +1142,7 @@ class GlideIMEService : InputMethodService() {
                             // Réteg 5: Tab + Enter kombináció (utolsó próbálkozás)
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 try {
+                                    showToast("Submit Layer 5: TAB+ENTER")
                                     sendDownUpKeyEvents(KeyEvent.KEYCODE_TAB)
                                     // Rövid szünet Tab után
                                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
