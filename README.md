@@ -1,10 +1,10 @@
-# GlideIME-Hungarian 🇭🇺
+# Magyar Glide 🇭🇺
 
 Magyar billentyűzet-kiosztás (QWERTZ) Huawei Glide fizikai billentyűzethez HarmonyOS/Android rendszereken.
 
 ## 📝 Leírás
 
-A **GlideIME-Hungarian** egy Input Method Editor (IME) alkalmazás, amely lehetővé teszi a magyar QWERTZ billentyűzet-kiosztás használatát Huawei készülékeken fizikai billentyűzettel (különösen Huawei Glide). Az alkalmazás támogatja az összes magyar ékezetes karaktert, valamint számos speciális funkciót, mint például a Ctrl-kombinációk, szövegkezelési parancsok és intelligens Enter kezelés.
+A **Magyar Glide** egy Input Method Editor (IME) alkalmazás, amely lehetővé teszi a magyar QWERTZ billentyűzet-kiosztás használatát Huawei készülékeken fizikai billentyűzettel (különösen Huawei Glide). Az alkalmazás támogatja az összes magyar ékezetes karaktert, valamint számos speciális funkciót, mint például a Ctrl-kombinációk, szövegkezelési parancsok és intelligens Enter kezelés.
 
 ## ✨ Funkciók
 
@@ -172,6 +172,10 @@ Ha több billentyűzeted van:
 - Vagy: **Swipe** a space billentyűn (néhány eszközön)
 
 ## ⌨️ Magyar Billentyűzet-kiosztás
+
+![Magyar Billentyűzet Kiosztás](docs/images/keyboard-layout.jpg)
+
+*A Huawei Glide magyar QWERTZ billentyűzet kiosztása*
 
 ### Számok (Shift kombinációval)
 ```
